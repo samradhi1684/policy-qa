@@ -29,8 +29,7 @@ const PAGE_SIZE = 4;
 // model cited; fall back to PAGE_SIZE if none were marked "used" (e.g. an
 // older cached response, or a category with no cited sources in it).
 function defaultVisibleCount(list: Source[]): number {
-  const used = list.filter((s) => s.used).length;
-  return used > 0 ? used : Math.min(PAGE_SIZE, list.length);
+  return Math.min(PAGE_SIZE, list.length);
 }
 
 export default function SourcePane({
@@ -344,7 +343,7 @@ export default function SourcePane({
 
                     <TypeBadge isWeb={isWeb} />
                     <ScoreBadge score={src.score} />
-                    {src.used && <UsedBadge />}
+                    
                   </div>
 
                   {description && (
@@ -560,24 +559,6 @@ function TypeBadge({ isWeb }: { isWeb: boolean }) {
   );
 }
 
-function UsedBadge() {
-  return (
-    <span
-      style={{
-        fontSize: 10,
-        fontWeight: 800,
-        letterSpacing: "0.03em",
-        padding: "2px 7px",
-        borderRadius: 6,
-        background: "var(--primary-soft)",
-        color: "var(--primary)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      ✓ USED
-    </span>
-  );
-}
 
 function ScoreBadge({ score }: { score: number }) {
   const pct = Math.round(score * 100);
