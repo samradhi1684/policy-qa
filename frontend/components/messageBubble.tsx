@@ -357,7 +357,7 @@ export default function MessageBubble({
               style={iconBtn}
             >
               <Database size={15} />
-              Sources ({sources.filter((s) => s.used).length || sources.length})
+              Sources ({sources.length})
             </button>
           )}
 
