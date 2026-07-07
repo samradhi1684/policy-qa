@@ -714,6 +714,44 @@ class AnswerGenerator:
                     "", [], evidence_map,
                 )
 
+    def build_prompt(
+        self,
+        query: str,
+        top_chunks: List[Dict[str, Any]],
+        question_type: str = "Descriptive",
+        conditions: str = "N/A",
+    ):
+        numbered_context, evidence_map = self._build_numbered_evidence(top_chunks)
+
+        if not numbered_context:
+            return "", {}
+
+        prompt = f"""
+Answer the question using ONLY the evidence below.
+
+Question:
+{query}
+
+Evidence:
+{numbered_context}
+
+Instructions:
+- Use only the supplied evidence.
+- If the evidence does not answer the question, say so.
+- Return ONLY valid JSON.
+- Format exactly as:
+
+{{
+  "answer": "<your answer>",
+  "citations": ["S0","S2"]
+}}
+
+Answer:
+""".strip()
+
+        return prompt, evidence_map
+
+
 
     def build_stream_prompt(
         self,
