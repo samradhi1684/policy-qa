@@ -12,7 +12,8 @@ type Props = {
   onFileSelect: (file: File | null) => void;
 };
 
-const BASE = "http://127.0.0.1:8000";
+const BASE =
+  process.env.NEXT_PUBLIC_BACKEND_URL!;
 
 export default function InputBar({
   value,

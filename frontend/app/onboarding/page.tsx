@@ -7,7 +7,8 @@ import FormField from "../../components/formField";
 import RoleSelector from "../../components/roleSelector";
 
 const DEFAULT_ROLE = "Citizen";
-const API_URL = "http://127.0.0.1:8000";
+const API_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL!;
 
 export default function OnboardingPage() {
   const router = useRouter();
