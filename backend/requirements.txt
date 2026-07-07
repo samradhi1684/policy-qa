@@ -1,0 +1,27 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+sqlalchemy
+alembic
+asyncpg
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+requests
+joblib
+numpy
+torch --index-url https://download.pytorch.org/whl/cpu
+scikit-learn
+rapidfuzz
+sentence-transformers
+tavily-python
+openai
+python-docx
+openpyxl
+pypdf
+reportlab
+faster_whisper
+email-validator
+psycopg2-binary
+bcrypt==4.0.1

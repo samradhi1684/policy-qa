@@ -1,0 +1,33 @@
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/root/.cache/huggingface
+
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+        python3.11 python3.11-venv python3-pip \
+        build-essential git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3.11 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN pip install --upgrade pip setuptools wheel
+
+RUN pip install vllm==0.7.3
+
+RUN pip install "transformers==4.48.3"
+
+RUN python -c "import torch; print('torch', torch.__version__, '| built for cuda', torch.version.cuda)"
+
+WORKDIR /app
+COPY start_llm.sh /app/start_llm.sh
+RUN chmod +x /app/start_llm.sh
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=5 \
+    CMD curl -sf -H "Authorization: Bearer ${VLLM_API_KEY}" http://localhost:8000/v1/models || exit 1
+
+ENTRYPOINT ["/app/start_llm.sh"]

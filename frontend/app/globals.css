@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  /* Core surface colors */
+  --background: #ffffff;
+  --foreground: #1a1a2e;
+
+  /* Sidebar */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #ececf3;
+  --sidebar-hover: #f4f2fd;
+  --sidebar-active: #ede9fc;
+
+  /* Input */
+  --input-bg: #ffffff;
+  --input-border: #e3e1f5;
+
+  /* Chat bubbles */
+  --user-bubble-bg: #6d5ff0;
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #f6f5fd;
+  --assistant-text: #1a1a2e;
+  --placeholder-text: #8b8aa3;
+
+  /* Buttons / accents */
+  --send-btn-bg: #6d5ff0;
+  --send-btn-text: #ffffff;
+
+  --sources-bg: #ffffff;
+  --sources-border: #ececf3;
+
+  /* Brand purple */
+  --accent: #6d5ff0;
+  --primary: #6d5ff0;
+  --primary-hover: #5b4fe0;
+  --primary-soft: #f0eefe;
+  --primary-soft-border: #ded9fb;
+
+  /* Badges */
+  --badge-gov-bg: #eef2ff;
+  --badge-gov-text: #4f46e5;
+  --badge-news-bg: #fff7ed;
+  --badge-news-text: #c2410c;
+  --badge-guide-bg: #f0eefe;
+  --badge-guide-text: #6d5ff0;
+  --badge-web-bg: #eef9ff;
+  --badge-web-text: #0284c7;
+
+  --shadow-sm: 0 1px 3px rgba(30, 20, 90, 0.06);
+  --shadow-md: 0 6px 24px rgba(45, 30, 110, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Söhne", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d9d5f5;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b9b1ec;
+}

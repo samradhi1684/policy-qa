@@ -1,0 +1,117 @@
+services:
+  llm:
+    build:
+      context: .
+      dockerfile: Dockerfile.llm
+    image: chatai-llm:latest
+    container_name: chatai-llm
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - VLLM_API_KEY=${LLM_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    shm_size: "2gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - chatai-net
+
+  reranker:
+    build:
+      context: .
+      dockerfile: Dockerfile.reranker
+    image: chatai-reranker:latest
+    container_name: chatai-reranker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - RERANKER_API_KEY=${RERANKER_API_KEY}
+    ports:
+      - "8001:8001"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - chatai-net
+
+  embedder:
+    build:
+      context: .
+      dockerfile: Dockerfile.embed
+    image: chatai-embedder:latest
+    container_name: chatai-embedder
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - VLLM_API_KEY=${EMBEDDING_API_KEY}   # ← Changed
+    ports:
+      - "8003:8003"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - chatai-net
+
+  postgres:
+    image: postgres:16
+    container_name: chatai-postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - chatai-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    image: chatai-backend:latest
+    container_name: chatai-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/app/answering/indices:/app/app/answering/indices
+    depends_on:
+      - postgres
+      - llm
+      - reranker
+      - embedder
+    networks:
+      - chatai-net
+
+networks:
+  chatai-net:
+    name: chatai-net
+
+volumes:
+  hf-cache:
+    name: chatai-hf-cache
+  pgdata:
+    name: chatai-pgdata
