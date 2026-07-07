@@ -7,7 +7,7 @@ import FormField from "../../components/formField";
 import { useAuth } from "../../context/AuthContext";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL!;
+  (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/+$/, "");
 
 export default function SignInPage() {
   const router = useRouter();

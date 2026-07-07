@@ -8,7 +8,7 @@ import RoleSelector from "../../components/roleSelector";
 
 const DEFAULT_ROLE = "Citizen";
 const API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL!;
+  (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/+$/, "");
 
 export default function OnboardingPage() {
   const router = useRouter();
