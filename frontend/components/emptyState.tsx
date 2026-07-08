@@ -21,11 +21,11 @@ const COUNTRY_CONFIG: Record<string, CountryConfig> = {
   dsire: {
     badge: "United States",
     flag: "🇺🇸",
-    headline: "US Renewable Energy Policy Assistant",
+    headline: "Renewable Energy Policy Assistant",
     subtitle:
       "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across the United States.",
     suggestions: [
-      "How does the Federal Investment Tax Credit work?",
+      "How is funding distributed for the Charge at Work program?",
       "Where are Park & Plug chargers installed?",
       "Explain the VW Mitigation Program",
       "When are Indiana off-peak charging hours?",
@@ -34,7 +34,7 @@ const COUNTRY_CONFIG: Record<string, CountryConfig> = {
   mnre: {
     badge: "India",
     flag: "🇮🇳",
-    headline: "India Renewable Energy Policy Assistant",
+    headline: "Renewable Energy Policy Assistant",
     subtitle:
       "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across India.",
     suggestions: [
