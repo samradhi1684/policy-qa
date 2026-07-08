@@ -59,6 +59,8 @@ from app.services.document_retriever import (
     retrieve_chunks,
 )
 
+from app.services.confidence import assess_fuzzy_confidence
+
 
 from app.services.message_service import (
     create_message,
@@ -229,21 +231,85 @@ async def query_in_chat(
 
         chunks = chunk_text(text)
 
-        retrieved = retrieve_chunks(
-            question,
-            chunks,
+        # Route before touching the fuzzy retriever, same as /query and
+        # /query/stream. A "thanks" or "what can you do" sent alongside an
+        # uploaded file shouldn't run a fuzzy match over the file's chunks
+        # any more than it should hit the vector DB in the other two paths.
+        # Short-circuit routes build `result` directly and skip retrieval/
+        # generation below, but still fall through to the shared tail
+        # (message saving, download generation, title) further down.
+        memory_context = pipeline.memory.build_context_with_summary(
+            history, llm
         )
+        route = pipeline.router.route(question, memory_context)
 
-        context = "\n\n".join(
-            r["chunk_text"]
-            for r in retrieved
-        )
+        result = None
 
-        output_format = detect_format(
-            question
-        )
+        if route.category == "general":
+            raw = llm.generate(
+                pipeline.prompt_builder.build_conversational(question, memory_context),
+                temperature=0.4,
+                max_tokens=200,
+            )
+            result = {"answer": str(getattr(raw, "content", raw)).strip(), "sources": []}
 
-        prompt = f"""
+        elif route.category == "out_of_scope":
+            raw = llm.generate(
+                pipeline.prompt_builder.build_out_of_scope(question),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            result = {"answer": str(getattr(raw, "content", raw)).strip(), "sources": []}
+
+        elif route.category == "clarify":
+            raw = llm.generate(
+                pipeline.prompt_builder.build_clarification(question, memory_context),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            result = {
+                "answer": str(getattr(raw, "content", raw)).strip(),
+                "sources": [],
+                "needs_clarification": True,
+            }
+
+        else:
+            # route.category == "domain" — existing fuzzy-retrieval +
+            # generation flow, now confidence-gated.
+            retrieved = retrieve_chunks(
+                question,
+                chunks,
+            )
+
+            # Confidence gate: this fuzzy-match path previously had none —
+            # it would generate from the top-5 matches even if none of
+            # them were actually about the question. rapidfuzz
+            # partial_ratio is a 0-100 scale, so this uses its own
+            # threshold (confidence.py), not the cosine/rerank ones the
+            # other two paths use.
+            if assess_fuzzy_confidence(retrieved) == "low":
+                raw = llm.generate(
+                    pipeline.prompt_builder.build_fallback(question, memory_context),
+                    temperature=0.3,
+                    max_tokens=200,
+                )
+                result = {
+                    "answer": str(getattr(raw, "content", raw)).strip(),
+                    "sources": [],
+                    "low_confidence": True,
+                }
+
+            else:
+                context = "\n\n".join(
+                    r["chunk_text"]
+                    for r in retrieved
+                )
+
+                output_format = detect_format(
+                    question
+                )
+
+                prompt = f"""
         Answer using ONLY the context.
 
         OUTPUT FORMAT:
@@ -280,15 +346,15 @@ async def query_in_chat(
         {question}
         """
 
-        answer = llm.generate(
-            prompt,
-            temperature=0.2,
-        )
+                answer = llm.generate(
+                    prompt,
+                    temperature=0.2,
+                )
 
-        result = {
-            "answer": answer,
-            "sources": retrieved,
-        }
+                result = {
+                    "answer": answer,
+                    "sources": retrieved,
+                }
 
     #
     # EXISTING RAG MODE
@@ -463,7 +529,18 @@ async def query_in_chat_stream(
             question,
         )
 
-    
+    # Needed by the router + memory context inside prepare_for_stream() -
+    # previously this endpoint never fetched history at all, so every
+    # message (including follow-ups) was routed/answered with zero
+    # conversational context.
+    history = []
+
+    if current_user:
+        history = await get_recent_messages(
+            db,
+            chat_id,
+        )
+
     is_new_chat = (
         current_user
         and chat is not None
@@ -472,14 +549,17 @@ async def query_in_chat_stream(
 
     async def event_stream():
         # Tell the frontend generation has started so it can show a
-        # "Thinking..." state immediately, before retrieval/rerank finishes.
+        # "Thinking..." state immediately, before routing/retrieval/rerank
+        # finishes. General/out-of-scope/clarify messages now often reach
+        # the first token much sooner since they skip retrieval entirely.
         yield f"data: {json.dumps({'status': 'thinking'})}\n\n"
 
-        # Retrieval + rerank + prompt-building is CPU/GPU/network bound and
-        # synchronous, so it's run off the event loop in a thread.
+        # Routing + retrieval + rerank + prompt-building is CPU/GPU/network
+        # bound and synchronous, so it's run off the event loop in a thread.
         prompt, sources, fallback = await run_in_threadpool(
             pipeline.prepare_for_stream,
             question,
+            history,
         )
 
         full_answer = ""

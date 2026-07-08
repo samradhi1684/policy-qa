@@ -1,25 +1,30 @@
 import re
 import json
+import logging
 from rapidfuzz import fuzz
 
 from app.adapters.llm_client import LLMClient
-from app.adapters.retriever import Retriever
-from app.services.web_search import search_web
+from app.services.retrieval.policy_retriever import PolicyRetriever
 from app.services.prompt_builder import PromptBuilder
 from app.services.memory_manager import MemoryManager
 from app.services.planner import Planner
+from app.services.routing.conversation_router import ConversationRouter
+from app.services.confidence import assess_confidence
+
+logger = logging.getLogger(__name__)
 
 
 
 class RAGPipeline:
 
     def __init__(self):
-        self.retriever = Retriever()
+        self.retriever = PolicyRetriever()
         self.llm = LLMClient()
  
         self.prompt_builder = PromptBuilder()
         self.memory = MemoryManager()
         self.planner = Planner(self.llm)
+        self.router = ConversationRouter(self.llm)
     
 
     def generate_chat_title(
@@ -65,13 +70,64 @@ class RAGPipeline:
         web_search=False,
     ):
 
-        web_context = ""
-        web_results = []
-        web_sources = []
-        
-        memory_context = self.memory.build_context(
-        chat_history 
-        )   
+        if web_search:
+            logger.info(
+                "web_search=True was passed but web search is not part of "
+                "this pipeline; ignoring."
+            )
+
+        # Step 5b: summary-aware memory context. Below ~20 turns this
+        # is identical to build_context(); past that, older turns
+        # collapse into a short LLM summary instead of falling off
+        # the token budget.
+        memory_context = self.memory.build_context_with_summary(
+            chat_history,
+            self.llm,
+        )
+
+        # ------------------------------------------------------------
+        # Route BEFORE doing anything expensive. Only "domain" messages
+        # go on to the planner + retrieval + generation below. Everything
+        # else short-circuits with a lightweight, tool-free response.
+        # ------------------------------------------------------------
+        route = self.router.route(question, memory_context)
+
+        print("\n--- ROUTER ---")
+        print(json.dumps(
+            {"category": route.category, "confidence": route.confidence},
+            indent=2,
+        ))
+        print("--------------------")
+
+        if route.is_general():
+            raw = self.llm.generate(
+                self.prompt_builder.build_conversational(question, memory_context),
+                temperature=0.4,
+                max_tokens=200,
+            )
+            return self._finalize(question, raw)
+
+        if route.is_out_of_scope():
+            raw = self.llm.generate(
+                self.prompt_builder.build_out_of_scope(question),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return self._finalize(question, raw)
+
+        if route.is_clarify():
+            raw = self.llm.generate(
+                self.prompt_builder.build_clarification(question, memory_context),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return self._finalize(question, raw, needs_clarification=True)
+
+        # ------------------------------------------------------------
+        # route.category == "domain" from here on — existing planner +
+        # retrieval + generation flow, unchanged apart from web search
+        # having been removed.
+        # ------------------------------------------------------------
         decision = self.planner.plan(
             question,
             memory_context
@@ -100,59 +156,6 @@ class RAGPipeline:
             )
 
             search_question = question
-        if (
-            web_search
-            or decision["needs_web_search"]
-        ):
-
-            print("RUNNING TAVILY SEARCH")
-            try:
-    
-    
-             
-                print(
-                    "ORIGINAL:",
-                    question
-                )
-
-                print(
-                    "REWRITTEN:",
-                    search_question
-                )
-                web_results = search_web(
-                    search_question
-                )
-               
-                web_sources = [
-    {
-        "title": r["title"],
-        "url": r["url"],
-        "content": r["content"]
-    }
-    for r in web_results[:5]
-]
-                
-                print(
-                "WEB RESULTS:",
-                len(web_results)
-            )
-
-                web_context = "\n\n".join(
-                    [
-                        f"Title: {r['title']}\n"
-                        f"Content: {r['content']}"
-                        for r in web_results[:5]
-                    ]
-                )
-
-            except Exception as e:
-
-                print(
-                    "Web search failed:",
-                    e
-                )
-
-                web_context = ""
 
         if retrieved_override is not None:
 
@@ -173,6 +176,27 @@ class RAGPipeline:
                     search_question,
                     top_k=top_k
                 )
+
+        # ------------------------------------------------------------
+        # Confidence gate: retrieval ran but nothing usable came back.
+        # Don't let the LLM try to force an answer out of weak evidence —
+        # be honest instead. Only applies when retrieval actually ran for
+        # this intent (retrieved_override bypasses this, same as it
+        # already bypasses the retrieval decision above).
+        # ------------------------------------------------------------
+        if (
+            retrieved_override is None
+            and decision["needs_retrieval"]
+            and assess_confidence(retrieved) == "low"
+        ):
+            print("LOW CONFIDENCE RETRIEVAL — routing to fallback response")
+
+            raw = self.llm.generate(
+                self.prompt_builder.build_fallback(question, memory_context),
+                temperature=0.3,
+                max_tokens=200,
+            )
+            return self._finalize(question, raw, low_confidence=True)
 
         evidence_map = {}
         evidence_lines = []
@@ -213,7 +237,7 @@ class RAGPipeline:
 
             policy_context=numbered_context,
 
-            web_context=web_context,
+            web_context="",
 
             response_mode=decision[
                 "response_mode"
@@ -400,9 +424,42 @@ class RAGPipeline:
             "question": question,
             "answer": answer,
             "sources": sources,
-            "web_sources": web_sources
+            "web_sources": []
          
         }
+
+    def _finalize(
+        self,
+        question: str,
+        raw_answer,
+        needs_clarification: bool = False,
+        low_confidence: bool = False,
+    ):
+        """
+        Shared return-shape builder for the router short-circuit paths
+        (general / out_of_scope / clarify) and the confidence-gated
+        fallback path. Keeps the response dict consistent with the
+        domain path's shape so the API layer and frontend don't need
+        to special-case these routes.
+        """
+
+        answer = getattr(raw_answer, "content", raw_answer)
+        answer = str(answer).strip()
+
+        result = {
+            "question": question,
+            "answer": answer,
+            "sources": [],
+            "web_sources": [],
+        }
+
+        if needs_clarification:
+            result["needs_clarification"] = True
+
+        if low_confidence:
+            result["low_confidence"] = True
+
+        return result
 
 
 # Helpers

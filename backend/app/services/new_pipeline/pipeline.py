@@ -19,6 +19,10 @@ from app.adapters.llm_client import (
     RerankerClient,
     EmbeddingClient,
 )
+from app.services.routing.conversation_router import ConversationRouter
+from app.services.memory_manager import MemoryManager
+from app.services.prompt_builder import PromptBuilder
+from app.services.confidence import assess_rerank_confidence
 
 llm_client = LLMClient()
 reranker_client = RerankerClient(
@@ -846,6 +850,13 @@ class Pipeline:
         # durations from the critical path almost for free.
         self._io_pool = ThreadPoolExecutor(max_workers=2)
 
+        # Route-before-retrieve components. Kept as thin wrappers around
+        # llm_client so they're independently testable and reused by both
+        # answer() and prepare_for_stream() below.
+        self.router         = ConversationRouter(llm_client)
+        self.memory         = MemoryManager()
+        self.prompt_builder = PromptBuilder()
+
     def run(
         self,
         query: str,
@@ -890,8 +901,30 @@ class Pipeline:
         # 3. Rerank
         top_chunks = self.reranker.rerank(query, pool)
 
+        # 3b. Confidence gate: retrieval + rerank ran, but the best match
+        # may still be barely related to the query (candidate pooling
+        # always returns *something* — it doesn't know when to say "none
+        # of this is actually relevant"). Check the top rerank_score before
+        # generation is allowed to happen at all.
+        if assess_rerank_confidence(top_chunks) == "low":
+            is_yn = question_type.lower().startswith("yes")
+            total = time.perf_counter() - pipeline_start
+            print(f"[TIMING] PIPELINE RUN TOTAL (low confidence): {total:.3f}s")
+            logger.info("LOW CONFIDENCE RERANK — short-circuiting to fallback")
+            return {
+                "predicted_answer": "No — No relevant information found." if is_yn
+                                    else "No relevant information found.",
+                "prompt":           "",
+                "query_entities":   query_entities,
+                "top_chunks":       top_chunks,
+                "citations":        [],
+                "evidence_map":     {},
+                "low_confidence":   True,
+            }
+
         # 4. Generate answer (+ which evidence sentences it actually cited)
         if generate_answer:
+
 
             answer, prompt, citations, evidence_map = self.generator.generate(
                 query,
@@ -926,6 +959,26 @@ class Pipeline:
         }
 
 
+    def _route(self, question: str, chat_history):
+        """
+        Shared route-before-retrieve step for answer() and
+        prepare_for_stream(). Returns (route, memory_context).
+
+        chat_history was previously accepted for API-compatibility only
+        and never actually read. It's now the input to both the router
+        and the memory context used downstream by generation.
+        """
+        # Step 5b: summary-aware memory context (see memory_manager.py).
+        memory_context = self.memory.build_context_with_summary(
+            chat_history, llm_client
+        )
+        route = self.router.route(question, memory_context)
+
+        logger.info(f"ROUTER: category={route.category} confidence={route.confidence}")
+        print(f"[ROUTER] category={route.category} confidence={route.confidence}")
+
+        return route, memory_context
+
     def answer(
         self,
         question: str,
@@ -936,11 +989,61 @@ class Pipeline:
     ):
         """
         Wrapper so the new pipeline behaves like the old RAGPipeline.
-        chat_history, web_search and retrieved_override are accepted
-        for compatibility with the existing API.
+        web_search and retrieved_override are accepted for compatibility
+        with the existing API but are not used by this pipeline.
+
+        chat_history now actually routes the message: general chit-chat,
+        out-of-scope questions, and ambiguous messages short-circuit
+        before hitting the retrieval/rerank pool at all.
         """
+        route, memory_context = self._route(question, chat_history)
+
+        if route.category == "general":
+            raw = llm_client.generate(
+                self.prompt_builder.build_conversational(question, memory_context),
+                temperature=0.4,
+                max_tokens=200,
+            )
+            return {"answer": str(raw).strip(), "sources": [], "used_source_count": 0}
+
+        if route.category == "out_of_scope":
+            raw = llm_client.generate(
+                self.prompt_builder.build_out_of_scope(question),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return {"answer": str(raw).strip(), "sources": [], "used_source_count": 0}
+
+        if route.category == "clarify":
+            raw = llm_client.generate(
+                self.prompt_builder.build_clarification(question, memory_context),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return {
+                "answer": str(raw).strip(),
+                "sources": [],
+                "used_source_count": 0,
+                "needs_clarification": True,
+            }
+
+        # route.category == "domain" — existing retrieval + rerank +
+        # generate flow, unchanged from here down.
         with Timer("Pipeline.answer() — TOTAL (incl. run + source formatting)"):
             result = self.run(query=question)
+
+            if result.get("low_confidence"):
+                raw = llm_client.generate(
+                    self.prompt_builder.build_fallback(question, memory_context),
+                    temperature=0.3,
+                    max_tokens=200,
+                )
+                return {
+                    "answer": str(raw).strip(),
+                    "sources": [],
+                    "used_source_count": 0,
+                    "low_confidence": True,
+                }
 
             citations    = result.get("citations", [])
             evidence_map = result.get("evidence_map", {})
@@ -1002,17 +1105,46 @@ class Pipeline:
     def prepare_for_stream(
         self,
         question: str,
+        chat_history=None,
     ):
         """
-        Performs retrieval/reranking exactly like answer(),
-        but stops before generation.
+        Performs routing first, then (for domain messages) retrieval/
+        reranking exactly like answer(), but stops before generation.
 
         Returns:
-            prompt,
-            sources,
-            fallback
+            prompt,       # non-empty only for the domain/generate path
+            sources,      # [] for general/out_of_scope/clarify/low_confidence
+            fallback      # pre-written text to stream verbatim instead of
+                          # calling the LLM with `prompt`, or None
         """
 
+        route, memory_context = self._route(question, chat_history)
+
+        if route.category == "general":
+            answer = llm_client.generate(
+                self.prompt_builder.build_conversational(question, memory_context),
+                temperature=0.4,
+                max_tokens=200,
+            )
+            return None, [], str(answer).strip()
+
+        if route.category == "out_of_scope":
+            answer = llm_client.generate(
+                self.prompt_builder.build_out_of_scope(question),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return None, [], str(answer).strip()
+
+        if route.category == "clarify":
+            answer = llm_client.generate(
+                self.prompt_builder.build_clarification(question, memory_context),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return None, [], str(answer).strip()
+
+        # route.category == "domain" — existing retrieval + rerank flow.
         result = self.run(
             query=question,
             generate_answer=False,
@@ -1078,6 +1210,18 @@ class Pipeline:
 
         if sources and not any(s["used"] for s in sources):
             sources[0]["used"] = True
+
+        if result.get("low_confidence"):
+            # Same confidence gate as run(), but here we want the honest
+            # "not enough grounded info" wording from PromptBuilder rather
+            # than the generic "No relevant information found." placeholder,
+            # matching the fallback path used by answer() and RAGPipeline.
+            answer = llm_client.generate(
+                self.prompt_builder.build_fallback(question, memory_context),
+                temperature=0.3,
+                max_tokens=200,
+            )
+            return None, [], str(answer).strip()
 
         if not result["prompt"]:
             return None, sources, result["predicted_answer"]
