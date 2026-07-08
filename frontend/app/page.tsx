@@ -157,6 +157,7 @@ export default function LandingPage() {
                   />
               </video>
           </div>
+          </div>
           </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
