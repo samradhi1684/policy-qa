@@ -1,6 +1,7 @@
 "use client";
 
 import Logo from "./logo";
+import BackButton from "./backButton";
 
 type Props = {
   children: React.ReactNode;
@@ -24,6 +25,16 @@ export default function AuthLayout({
   return (
     <div className="auth-shell">
       <div className="auth-card">
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            zIndex: 5,
+          }}
+        >
+          <BackButton fallbackHref="/" />
+        </div>
         <div className="auth-card-top">
           <Logo />
           {step && (
@@ -46,38 +57,25 @@ export default function AuthLayout({
 
         <div className="auth-card-body">{children}</div>
 
-        {showBack && (
+        {showBack && onBack && (
           <button
             onClick={onBack}
-            aria-label="Go back"
+            aria-label="Previous step"
             style={{
               position: "absolute",
               left: "24px",
               bottom: "24px",
-              width: "40px",
-              height: "40px",
+              padding: "8px 14px",
               borderRadius: "10px",
               border: "1px solid var(--input-border)",
               background: "#ffffff",
               cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--foreground)",
             }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#0d0d0d"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="19" y1="12" x2="5" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
+            ← Previous
           </button>
         )}
       </div>

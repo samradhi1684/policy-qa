@@ -30,9 +30,47 @@ DOCUMENTS_DIR = (
 )
 
 
+from pydantic import BaseModel
+
+from app.services.doc_title_service import get_titles
+from app.services import session_documents
+
+
+class TitlesBody(BaseModel):
+    document_ids: list[str]
+
+
+@router.post("/titles")
+async def document_titles(body: TitlesBody):
+    """Resolve human-readable titles for document ids. Titles are
+    generated once with a lightweight LLM call, cached on disk, and
+    fall back to the filename if generation fails."""
+    ids = body.document_ids[:50]  # sanity cap
+    return {"titles": get_titles(ids)}
+
+
 @router.get("/{document_id}")
 async def get_document(document_id: str):
+    # Chat-session uploaded documents live in the session store, not on
+    # the corpus documents directory.
+    if document_id.startswith("upload-"):
+        text = session_documents.get_document_text(document_id)
+        if text is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found",
+            )
+        return JSONResponse(
+            {
+                "document_id": document_id,
+                "markdown": text,
+            }
+        )
+
+    # Corpus documents may be referenced with or without the .md extension.
     path = DOCUMENTS_DIR / document_id
+    if not path.exists():
+        path = DOCUMENTS_DIR / f"{document_id}.md"
 
     if not path.exists():
         raise HTTPException(

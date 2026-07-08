@@ -1,53 +1,73 @@
 @import "tailwindcss";
 
+/*
+ * Design language: calm, academic, research-focused (Elicit-inspired).
+ * Dominant white surfaces on a very light green gradient background.
+ * Accents: pastel green (primary), soft brown (secondary), muted purple
+ * (tertiary, used sparingly for provenance/citation affordances).
+ *
+ * Every component reads these tokens, so the palette is defined once here.
+ */
 :root {
   /* Core surface colors */
   --background: #ffffff;
-  --foreground: #1a1a2e;
+  --foreground: #22301f;
+
+  /* App-level gradient backdrop (very light green) */
+  --app-gradient: linear-gradient(180deg, #f4faf3 0%, #ffffff 45%, #f6faf4 100%);
+  --surface-soft: #f7faf5;
 
   /* Sidebar */
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #ececf3;
-  --sidebar-hover: #f4f2fd;
-  --sidebar-active: #ede9fc;
+  --sidebar-bg: #fbfdfa;
+  --sidebar-border: #e5ece2;
+  --sidebar-hover: #eff6ec;
+  --sidebar-active: #e4f0df;
 
   /* Input */
   --input-bg: #ffffff;
-  --input-border: #e3e1f5;
+  --input-border: #dde8d8;
 
   /* Chat bubbles */
-  --user-bubble-bg: #6d5ff0;
+  --user-bubble-bg: #4d7c58;
   --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #f6f5fd;
-  --assistant-text: #1a1a2e;
-  --placeholder-text: #8b8aa3;
+  --assistant-bubble-bg: #f6faf4;
+  --assistant-text: #22301f;
+  --placeholder-text: #7d8a78;
 
   /* Buttons / accents */
-  --send-btn-bg: #6d5ff0;
+  --send-btn-bg: #4d7c58;
   --send-btn-text: #ffffff;
 
   --sources-bg: #ffffff;
-  --sources-border: #ececf3;
+  --sources-border: #e5ece2;
 
-  /* Brand purple */
-  --accent: #6d5ff0;
-  --primary: #6d5ff0;
-  --primary-hover: #5b4fe0;
-  --primary-soft: #f0eefe;
-  --primary-soft-border: #ded9fb;
+  /* Brand: pastel green primary */
+  --accent: #4d7c58;
+  --primary: #4d7c58;
+  --primary-hover: #3e6a49;
+  --primary-soft: #ecf5ec;
+  --primary-soft-border: #d5e6d4;
+
+  /* Secondary accents */
+  --accent-brown: #8a7357;        /* soft brown */
+  --accent-brown-soft: #f6f1ea;
+  --accent-purple: #7b6fa8;       /* muted purple */
+  --accent-purple-soft: #f1eff8;
 
   /* Badges */
-  --badge-gov-bg: #eef2ff;
-  --badge-gov-text: #4f46e5;
-  --badge-news-bg: #fff7ed;
-  --badge-news-text: #c2410c;
-  --badge-guide-bg: #f0eefe;
-  --badge-guide-text: #6d5ff0;
-  --badge-web-bg: #eef9ff;
-  --badge-web-text: #0284c7;
+  --badge-gov-bg: #ecf5ec;
+  --badge-gov-text: #3e6a49;
+  --badge-news-bg: #f6f1ea;
+  --badge-news-text: #8a7357;
+  --badge-guide-bg: #f1eff8;
+  --badge-guide-text: #7b6fa8;
+  --badge-web-bg: #eef7f4;
+  --badge-web-text: #2f7d6d;
+  --badge-used-bg: #eaf5ec;
+  --badge-used-text: #2f7d43;
 
-  --shadow-sm: 0 1px 3px rgba(30, 20, 90, 0.06);
-  --shadow-md: 0 6px 24px rgba(45, 30, 110, 0.08);
+  --shadow-sm: 0 1px 3px rgba(38, 60, 40, 0.06);
+  --shadow-md: 0 6px 24px rgba(38, 60, 40, 0.08);
 }
 
 * {
@@ -59,7 +79,8 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: var(--background);
+  background: var(--app-gradient);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: "Söhne", ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -73,9 +94,16 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d9d5f5;
+  background: #cfdfca;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b9b1ec;
+  background: #b4ccab;
+}
+
+/* Evidence highlight (source panel) */
+mark {
+  background: #dcefd8;
+  border-radius: 3px;
+  padding: 1px 2px;
 }

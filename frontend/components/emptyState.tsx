@@ -1,18 +1,57 @@
 type Props = {
   selectedModel: string;
   onQuestionClick: (question: string) => void;
+  isGuest?: boolean;
 };
 
-const MODEL_LABELS: Record<string, string> = {
-  dsire: "USA",
-  mnre: "India",
+type CountryConfig = {
+  badge: string;
+  flag: string;
+  headline: string;
+  subtitle: string;
+  suggestions: string[];
+};
+
+/**
+ * All country-specific copy lives here so switching country in the sidebar
+ * instantly swaps the welcome message and suggested queries with no stale
+ * state (this component is fully derived from `selectedModel`).
+ */
+const COUNTRY_CONFIG: Record<string, CountryConfig> = {
+  dsire: {
+    badge: "United States",
+    flag: "🇺🇸",
+    headline: "US Renewable Energy Policy Assistant",
+    subtitle:
+      "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across the United States.",
+    suggestions: [
+      "How does the Federal Investment Tax Credit work?",
+      "Where are Park & Plug chargers installed?",
+      "Explain the VW Mitigation Program",
+      "When are Indiana off-peak charging hours?",
+    ],
+  },
+  mnre: {
+    badge: "India",
+    flag: "🇮🇳",
+    headline: "India Renewable Energy Policy Assistant",
+    subtitle:
+      "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across India.",
+    suggestions: [
+      "What are the benefits under PM Surya Ghar Yojana?",
+      "Explain the rooftop solar subsidy structure",
+      "What is the PM-KUSUM scheme for farmers?",
+      "What are India's renewable energy targets for 2030?",
+    ],
+  },
 };
 
 export default function EmptyState({
   selectedModel,
   onQuestionClick,
+  isGuest = false,
 }: Props) {
-  const badgeLabel = MODEL_LABELS[selectedModel] ?? selectedModel.toUpperCase();
+  const config = COUNTRY_CONFIG[selectedModel] ?? COUNTRY_CONFIG.dsire;
 
   return (
     <div
@@ -26,7 +65,7 @@ export default function EmptyState({
         gap: "16px",
       }}
     >
-      {/* Model badge */}
+      {/* Country badge */}
       <div
         style={{
           background: "var(--primary-soft)",
@@ -37,10 +76,13 @@ export default function EmptyState({
           fontWeight: 700,
           color: "var(--primary)",
           letterSpacing: "0.04em",
-          textTransform: "uppercase",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
         }}
       >
-        {badgeLabel}
+        <span>{config.flag}</span>
+        <span style={{ textTransform: "uppercase" }}>{config.badge}</span>
       </div>
 
       <h1
@@ -52,7 +94,7 @@ export default function EmptyState({
           textAlign: "center",
         }}
       >
-        Renewable Energy Policy Assistant
+        {config.headline}
       </h1>
 
       <p
@@ -61,15 +103,31 @@ export default function EmptyState({
           color: "var(--placeholder-text)",
           margin: 0,
           textAlign: "center",
-          maxWidth: "380px",
+          maxWidth: "420px",
           lineHeight: "1.6",
         }}
       >
-        Explore renewable energy policies, incentives, regulations, and programs from the United States and India.
+        {config.subtitle}
       </p>
 
-      {/* Suggestion chips */}
+      {isGuest && (
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "var(--accent-brown, #8a7357)",
+            background: "var(--surface-soft, #faf8f4)",
+            border: "1px solid var(--sidebar-border)",
+            borderRadius: 10,
+            padding: "6px 14px",
+          }}
+        >
+          Guest mode — your questions and answers won’t be saved.
+        </div>
+      )}
+
+      {/* Suggestion chips (keyed by country so they never go stale) */}
       <div
+        key={selectedModel}
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -79,13 +137,7 @@ export default function EmptyState({
           maxWidth: "600px",
         }}
       >
-        { [
-          "Where are Park & Plug chargers installed?",
-          "Explain the VW Mitigation Program",
-          "What is the timeline for the SMUD - Commercial Fleet Pilot Program?",
-          "When are Indiana off-peak charging hours?",
-        ]
-     .map((q) => (
+        {config.suggestions.map((q) => (
           <button
             key={q}
             onClick={() => onQuestionClick(q)}
@@ -93,7 +145,7 @@ export default function EmptyState({
               padding: "10px 16px",
               borderRadius: "12px",
               border: "1px solid var(--sidebar-border)",
-              background: "#fff",
+              background: "var(--background)",
               cursor: "pointer",
               fontSize: "13px",
               color: "var(--foreground)",
@@ -111,7 +163,7 @@ export default function EmptyState({
               (e.currentTarget as HTMLButtonElement).style.borderColor =
                 "var(--sidebar-border)";
               (e.currentTarget as HTMLButtonElement).style.background =
-                "#fff";
+                "var(--background)";
             }}
           >
             {q}

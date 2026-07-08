@@ -10,6 +10,11 @@ type Props = {
   loading?: boolean;
   selectedFile: File | null;
   onFileSelect: (file: File | null) => void;
+  /** Guests can't upload documents; shows an explanatory tooltip instead. */
+  uploadDisabled?: boolean;
+  uploadDisabledReason?: string;
+  /** 0-100 while an upload is in flight, null otherwise. */
+  uploadProgress?: number | null;
 };
 
 const BASE =
@@ -23,6 +28,9 @@ export default function InputBar({
   loading,
   selectedFile,
   onFileSelect,
+  uploadDisabled = false,
+  uploadDisabledReason = "Sign in to upload documents",
+  uploadProgress = null,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,19 +142,24 @@ export default function InputBar({
 
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach document"
+          onClick={() => {
+            if (uploadDisabled) return;
+            fileInputRef.current?.click();
+          }}
+          disabled={uploadDisabled}
+          title={uploadDisabled ? uploadDisabledReason : "Attach document"}
           style={{
             width: "36px",
             height: "36px",
             borderRadius: "50%",
             border: "none",
             background: "transparent",
-            cursor: "pointer",
+            cursor: uploadDisabled ? "not-allowed" : "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "var(--placeholder-text)",
+            opacity: uploadDisabled ? 0.4 : 1,
             flexShrink: 0,
           }}
         >
@@ -178,6 +191,11 @@ export default function InputBar({
             >
               {selectedFile.name}
             </span>
+            {uploadProgress !== null && uploadProgress < 100 && (
+              <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                {uploadProgress}%
+              </span>
+            )}
           </div>
         )}
 
@@ -233,12 +251,12 @@ export default function InputBar({
             height: "36px",
             borderRadius: "50%",
             border: "none",
-            background: canSend ? "var(--send-btn-bg)" : "#e5e3f6",
+            background: canSend ? "var(--send-btn-bg)" : "#e3ece0",
             cursor: canSend ? "pointer" : "not-allowed",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: canSend ? "var(--send-btn-text)" : "#a9a5d9",
+            color: canSend ? "var(--send-btn-text)" : "#9db296",
             flexShrink: 0,
             transition: "all 0.15s",
           }}

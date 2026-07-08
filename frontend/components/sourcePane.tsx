@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   fetchDocument,
+  fetchDocumentTitles,
   type Source,
 } from "../lib/api";
 import DocumentViewer from "./documentViewer";
@@ -24,12 +25,12 @@ type Category = "all" | "docs" | "web";
 
 const PAGE_SIZE = 4;
 
-// How many cards to show before the "View N more" button, for a given
-// (already category-filtered) list. Prefer showing exactly the sources the
-// model cited; fall back to PAGE_SIZE if none were marked "used" (e.g. an
-// older cached response, or a category with no cited sources in it).
+// Show exactly the sources the model actually cited in its answer; the
+// remaining retrieval/reranker candidates are hidden behind an explicit
+// "Show retrieved passages" toggle rather than presented as evidence.
 function defaultVisibleCount(list: Source[]): number {
-  return Math.min(PAGE_SIZE, list.length);
+  const used = list.filter((s) => s.used).length;
+  return used > 0 ? used : Math.min(1, list.length);
 }
 
 export default function SourcePane({
@@ -49,6 +50,33 @@ export default function SourcePane({
   const [documents, setDocuments] = useState<
     Record<string, string>
   >({});
+
+  // Which expanded card the user explicitly opened the full document for.
+  const [fullDocOpen, setFullDocOpen] = useState<Record<string, boolean>>({});
+
+  // Human-readable titles resolved (and cached) by the backend.
+  const [titles, setTitles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        sources
+          .filter((s) => !(s as any).is_web)
+          .map((s) => s.document_id)
+      )
+    ).filter((id) => !(id in titles));
+
+    if (ids.length === 0) return;
+
+    fetchDocumentTitles(ids)
+      .then((t) => setTitles((prev) => ({ ...prev, ...t })))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources]);
+
+  function displayTitle(s: Source): string {
+    return titles[s.document_id] ?? s.document_id.replace(/_/g, " ");
+  }
 
   const [panelWidth, setPanelWidth] = useState(520);
 
@@ -78,11 +106,13 @@ export default function SourcePane({
     if (expandedIndex === null) return;
 
     const src = sources[expandedIndex];
-
     if (!src) return;
-
     if ((src as any).is_web) return;
 
+    // Only load the full markdown after the user explicitly clicks
+    // "Open full document" — the initial expanded view shows just the
+    // highlighted cited section.
+    if (!fullDocOpen[src.chunk_id]) return;
     if (documents[src.document_id]) return;
 
     fetchDocument(src.document_id)
@@ -93,7 +123,7 @@ export default function SourcePane({
         }));
       })
       .catch(console.error);
-  }, [expandedIndex, sources, documents]);
+  }, [expandedIndex, sources, documents, fullDocOpen]);
 
 
   useEffect(() => {
@@ -235,7 +265,7 @@ export default function SourcePane({
         <span
           style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}
         >
-          Sources ({sources.length})
+          Supporting evidence ({sources.filter((s) => s.used).length || 1})
         </span>
         <button
           onClick={onClose}
@@ -338,8 +368,10 @@ export default function SourcePane({
                         color: "var(--foreground)",
                       }}
                     >
-                      {src.document_id.replace(/_/g, " ")}
+                      {displayTitle(src)}
                     </span>
+
+                    {src.used && <UsedBadge />}
 
                     <TypeBadge isWeb={isWeb} />
                     <ScoreBadge score={src.score} />
@@ -394,7 +426,7 @@ export default function SourcePane({
                 )}
               </div>
 
-              {isExpanded && (
+              {isExpanded && !isWeb && (
                 <div
                   style={{
                     marginTop: 10,
@@ -402,23 +434,58 @@ export default function SourcePane({
                     borderTop: "1px solid var(--sidebar-border)",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--placeholder-text)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Tokens {src.token_start}–{src.token_end}
-                  </div>
+                  {!fullDocOpen[src.chunk_id] ? (
+                    <>
+                      {/* Cited section only, with evidence highlighted */}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          lineHeight: 1.7,
+                          color: "var(--foreground)",
+                          whiteSpace: "pre-wrap",
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: buildHighlightedChunk(
+                            src.chunk_text,
+                            src.highlight_spans || []
+                          ),
+                        }}
+                      />
 
-                  <DocumentViewer
-                    markdown={
-                      documents[src.document_id] ??
-                      "# Loading document..."
-                    }
-                    highlightedChunk={src.chunk_text}
-                  />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFullDocOpen((prev) => ({
+                            ...prev,
+                            [src.chunk_id]: true,
+                          }));
+                        }}
+                        style={{
+                          marginTop: 10,
+                          padding: "7px 14px",
+                          borderRadius: 10,
+                          border: "1px solid var(--primary-soft-border)",
+                          background: "var(--primary-soft)",
+                          color: "var(--primary)",
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Open full document
+                      </button>
+                    </>
+                  ) : (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <DocumentViewer
+                        markdown={
+                          documents[src.document_id] ??
+                          "# Loading document..."
+                        }
+                        highlightedChunk={src.chunk_text}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -445,7 +512,7 @@ export default function SourcePane({
               gap: 6,
             }}
           >
-            View {remaining} more source{remaining > 1 ? "s" : ""} →
+            Show {remaining} more retrieved passage{remaining > 1 ? "s" : ""} →
           </button>
         )}
       </div>
@@ -541,6 +608,24 @@ function TabPill({
 
 // ── Type / score badges ──────────────────────────────────────────────────────
 
+function UsedBadge() {
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 800,
+        letterSpacing: "0.03em",
+        padding: "2px 7px",
+        borderRadius: 6,
+        background: "var(--badge-used-bg, #eaf5ec)",
+        color: "var(--badge-used-text, #2f7d43)",
+      }}
+    >
+      CITED
+    </span>
+  );
+}
+
 function TypeBadge({ isWeb }: { isWeb: boolean }) {
   return (
     <span
@@ -616,7 +701,7 @@ function buildHighlightedChunk(
     result += escapeHtml(chunkText.slice(current, h.start));
     result += `
       <mark style="
-        background:#e0d9ff;
+        background:#dcefd8;
         border-radius:3px;
         padding:1px 2px;
         font-weight:500;

@@ -6,6 +6,8 @@ const BASE =
 export type Source = {
   chunk_id: string;
   document_id: string;
+  title?: string;
+  used?: boolean;
   score: number;
   chunk_text: string;
 
@@ -115,7 +117,8 @@ export async function queryInChat(
   chatId: string,
   question: string,
   file?: File,
-  webSearch: boolean = false
+  webSearch: boolean = false,
+  country: string = "dsire"
 ): Promise<{
   answer: string;
   sources: Source[];
@@ -146,6 +149,8 @@ export async function queryInChat(
       "web_search",
       String(webSearch)
     );
+
+    formData.append("country", country);
 
     const res =
       await fetch(
@@ -181,6 +186,8 @@ export async function queryInChat(
     "web_search",
     String(webSearch)
   );
+
+  formData.append("country", country);
 
   const res = await fetch(
     `${BASE}/chats/${chatId}/query`,
@@ -355,6 +362,7 @@ export async function regenerateAnswer(
 export async function queryInChatStream(
   chatId: string,
   question: string,
+  country: string,
   handlers: {
     onThinking?: () => void;
     onToken?: (token: string) => void;
@@ -370,6 +378,7 @@ export async function queryInChatStream(
 
   const formData = new FormData();
   formData.append("question", question);
+  formData.append("country", country);
 
   const res = await fetch(
     `${BASE}/chats/${chatId}/query/stream`,
@@ -476,4 +485,84 @@ export async function fetchDocument(
   const data = await res.json();
 
   return data.markdown;
+}
+export type ChatDocument = {
+  id: string;
+  name: string;
+  chat_id: string;
+  num_chunks: number;
+  created_at?: string;
+};
+
+/**
+ * Upload a document into a chat session so it participates in retrieval.
+ * Uses XHR (not fetch) so real upload progress can be reported.
+ * Requires an authenticated session — guests cannot upload.
+ */
+export function uploadChatDocument(
+  chatId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<ChatDocument> {
+  const token = localStorage.getItem("token");
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/chats/${chatId}/documents`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error("Invalid upload response"));
+        }
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send((() => { const fd = new FormData(); fd.append("file", file); return fd; })());
+  });
+}
+
+export async function listChatDocuments(
+  chatId: string
+): Promise<ChatDocument[]> {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(`${BASE}/chats/${chatId}/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) throw new Error("Failed to list documents");
+  return res.json();
+}
+
+/**
+ * Resolve human-readable titles for a set of document ids.
+ * The backend caches generated titles, so repeat calls are cheap.
+ */
+export async function fetchDocumentTitles(
+  documentIds: string[]
+): Promise<Record<string, string>> {
+  if (documentIds.length === 0) return {};
+
+  const res = await fetch(`${BASE}/document/titles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch document titles");
+  const data = await res.json();
+  return data.titles ?? {};
 }

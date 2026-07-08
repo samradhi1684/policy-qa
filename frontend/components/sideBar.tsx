@@ -50,7 +50,8 @@ export default function Sidebar({
   selectedModel,
   onModelChange,
 }: Props) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
+  const isGuest = !token;
   const [menu, setMenu] = useState<MenuState>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -182,7 +183,7 @@ export default function Sidebar({
                 width: 30,
                 height: 30,
                 borderRadius: "50%",
-                background: "#17172a",
+                background: "var(--primary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -347,13 +348,13 @@ export default function Sidebar({
                   }}
                 />
               </div>
-            ) : (
+            ) : !isGuest ? (
               <NavItem
                 icon={<Search size={16} />}
                 label="Search Chats"
                 onClick={() => setSearchOpen(true)}
               />
-            )}
+            ) : null}
 
             <NavItem
               icon={<Plus size={16} />}
@@ -371,7 +372,38 @@ export default function Sidebar({
 
           {/* Chat list */}
           <div style={{ flex: 1, overflowY: "auto", paddingTop: 4 }}>
-            {filteredChats.length === 0 ? (
+            {isGuest ? (
+              <div
+                style={{
+                  margin: "8px 6px",
+                  padding: "14px 12px",
+                  border: "1px dashed var(--sidebar-border)",
+                  borderRadius: 12,
+                  fontSize: 12.5,
+                  lineHeight: 1.6,
+                  color: "var(--placeholder-text)",
+                }}
+              >
+                <strong style={{ color: "var(--foreground)" }}>
+                  Guest mode
+                </strong>
+                <br />
+                Chat history, renaming, search and document uploads are only
+                available with an account.
+                <a
+                  href="/signin"
+                  style={{
+                    display: "block",
+                    marginTop: 10,
+                    color: "var(--primary)",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
+                >
+                  Sign in to save your chats →
+                </a>
+              </div>
+            ) : filteredChats.length === 0 ? (
               <p
                 style={{
                   fontSize: "13px",
@@ -510,7 +542,9 @@ export default function Sidebar({
             <button
               onClick={() => {
                 logout();
-                window.location.href = "/signin";
+                // replace() so the authenticated chat page is not left as
+                // the previous history entry after logging out.
+                window.location.replace("/signin");
               }}
               style={{
                 width: "100%",

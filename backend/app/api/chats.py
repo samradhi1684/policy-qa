@@ -59,7 +59,7 @@ from app.services.document_retriever import (
     retrieve_chunks,
 )
 
-from app.services.confidence import assess_fuzzy_confidence
+from app.services import session_documents
 
 
 from app.services.message_service import (
@@ -175,6 +175,7 @@ async def query_in_chat(
     question: str = Form(...),
     file: UploadFile | None = File(None),
     web_search: bool = Form(False),
+    country: str = Form("dsire"),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -231,85 +232,21 @@ async def query_in_chat(
 
         chunks = chunk_text(text)
 
-        # Route before touching the fuzzy retriever, same as /query and
-        # /query/stream. A "thanks" or "what can you do" sent alongside an
-        # uploaded file shouldn't run a fuzzy match over the file's chunks
-        # any more than it should hit the vector DB in the other two paths.
-        # Short-circuit routes build `result` directly and skip retrieval/
-        # generation below, but still fall through to the shared tail
-        # (message saving, download generation, title) further down.
-        memory_context = pipeline.memory.build_context_with_summary(
-            history, llm
+        retrieved = retrieve_chunks(
+            question,
+            chunks,
         )
-        route = pipeline.router.route(question, memory_context)
 
-        result = None
+        context = "\n\n".join(
+            r["chunk_text"]
+            for r in retrieved
+        )
 
-        if route.category == "general":
-            raw = llm.generate(
-                pipeline.prompt_builder.build_conversational(question, memory_context),
-                temperature=0.4,
-                max_tokens=200,
-            )
-            result = {"answer": str(getattr(raw, "content", raw)).strip(), "sources": []}
+        output_format = detect_format(
+            question
+        )
 
-        elif route.category == "out_of_scope":
-            raw = llm.generate(
-                pipeline.prompt_builder.build_out_of_scope(question),
-                temperature=0.3,
-                max_tokens=150,
-            )
-            result = {"answer": str(getattr(raw, "content", raw)).strip(), "sources": []}
-
-        elif route.category == "clarify":
-            raw = llm.generate(
-                pipeline.prompt_builder.build_clarification(question, memory_context),
-                temperature=0.3,
-                max_tokens=150,
-            )
-            result = {
-                "answer": str(getattr(raw, "content", raw)).strip(),
-                "sources": [],
-                "needs_clarification": True,
-            }
-
-        else:
-            # route.category == "domain" — existing fuzzy-retrieval +
-            # generation flow, now confidence-gated.
-            retrieved = retrieve_chunks(
-                question,
-                chunks,
-            )
-
-            # Confidence gate: this fuzzy-match path previously had none —
-            # it would generate from the top-5 matches even if none of
-            # them were actually about the question. rapidfuzz
-            # partial_ratio is a 0-100 scale, so this uses its own
-            # threshold (confidence.py), not the cosine/rerank ones the
-            # other two paths use.
-            if assess_fuzzy_confidence(retrieved) == "low":
-                raw = llm.generate(
-                    pipeline.prompt_builder.build_fallback(question, memory_context),
-                    temperature=0.3,
-                    max_tokens=200,
-                )
-                result = {
-                    "answer": str(getattr(raw, "content", raw)).strip(),
-                    "sources": [],
-                    "low_confidence": True,
-                }
-
-            else:
-                context = "\n\n".join(
-                    r["chunk_text"]
-                    for r in retrieved
-                )
-
-                output_format = detect_format(
-                    question
-                )
-
-                prompt = f"""
+        prompt = f"""
         Answer using ONLY the context.
 
         OUTPUT FORMAT:
@@ -346,15 +283,15 @@ async def query_in_chat(
         {question}
         """
 
-                answer = llm.generate(
-                    prompt,
-                    temperature=0.2,
-                )
+        answer = llm.generate(
+            prompt,
+            temperature=0.2,
+        )
 
-                result = {
-                    "answer": answer,
-                    "sources": retrieved,
-                }
+        result = {
+            "answer": answer,
+            "sources": retrieved,
+        }
 
     #
     # EXISTING RAG MODE
@@ -365,6 +302,8 @@ async def query_in_chat(
                     question,
                     chat_history=history,
                     web_search=web_search,
+                    chat_id=chat_id if current_user else None,
+                    country=country,
                 )
 
     
@@ -491,6 +430,7 @@ async def query_in_chat_stream(
     chat_id: str,
     question: str = Form(...),
     web_search: bool = Form(False),
+    country: str = Form("dsire"),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -529,18 +469,7 @@ async def query_in_chat_stream(
             question,
         )
 
-    # Needed by the router + memory context inside prepare_for_stream() -
-    # previously this endpoint never fetched history at all, so every
-    # message (including follow-ups) was routed/answered with zero
-    # conversational context.
-    history = []
-
-    if current_user:
-        history = await get_recent_messages(
-            db,
-            chat_id,
-        )
-
+    
     is_new_chat = (
         current_user
         and chat is not None
@@ -549,17 +478,16 @@ async def query_in_chat_stream(
 
     async def event_stream():
         # Tell the frontend generation has started so it can show a
-        # "Thinking..." state immediately, before routing/retrieval/rerank
-        # finishes. General/out-of-scope/clarify messages now often reach
-        # the first token much sooner since they skip retrieval entirely.
+        # "Thinking..." state immediately, before retrieval/rerank finishes.
         yield f"data: {json.dumps({'status': 'thinking'})}\n\n"
 
-        # Routing + retrieval + rerank + prompt-building is CPU/GPU/network
-        # bound and synchronous, so it's run off the event loop in a thread.
+        # Retrieval + rerank + prompt-building is CPU/GPU/network bound and
+        # synchronous, so it's run off the event loop in a thread.
         prompt, sources, fallback = await run_in_threadpool(
             pipeline.prepare_for_stream,
             question,
-            history,
+            chat_id if current_user else None,
+            country,
         )
 
         full_answer = ""
@@ -928,3 +856,58 @@ async def regenerate_answer(
     )
 
     return result
+
+class _DocResponse(BaseModel):
+    id: str
+    name: str
+    chat_id: str
+    num_chunks: int
+    created_at: str | None = None
+
+
+@router.post("/{chat_id}/documents")
+async def upload_chat_document(
+    chat_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a PDF / Markdown / Text document into this chat. The document
+    is chunked, embedded, persisted, and merged into retrieval for every
+    subsequent question in the chat. Requires authentication."""
+    chat = await get_chat(db, chat_id, str(current_user.id))
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    filename = file.filename or "document"
+    lower = filename.lower()
+
+    if lower.endswith(".pdf"):
+        text = extract_pdf_text(file.file)
+    elif lower.endswith(".md") or lower.endswith(".txt"):
+        text = extract_md_text(file.file)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type (use PDF, Markdown, or Text)",
+        )
+
+    try:
+        meta = session_documents.add_document(chat_id, filename, text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return meta
+
+
+@router.get("/{chat_id}/documents")
+async def list_chat_documents(
+    chat_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    chat = await get_chat(db, chat_id, str(current_user.id))
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    return session_documents.list_documents(chat_id)

@@ -69,6 +69,19 @@ check "$APP/api/chats.py" "route = pipeline.router.route(question, memory_contex
 check "$APP/api/chats.py" "assess_fuzzy_confidence(retrieved)" "file-upload branch confidence-gated"
 
 echo ""
+echo "== Follow-up query rewriting wired into new_pipeline.Pipeline =="
+check "$APP/services/new_pipeline/pipeline.py" "from app.services.planner import Planner" "Pipeline imports Planner"
+check "$APP/services/new_pipeline/pipeline.py" "self.planner        = Planner(llm_client)" "Pipeline instantiates Planner"
+check "$APP/services/new_pipeline/pipeline.py" "def _resolve_query(self" "_resolve_query helper exists"
+check "$APP/services/new_pipeline/pipeline.py" "search_query = self._resolve_query(question, memory_context)" "answer()/prepare_for_stream() call _resolve_query"
+if grep -q "result = self.run(query=question)" "$APP/services/new_pipeline/pipeline.py" 2>/dev/null; then
+  echo "FAIL  [raw question no longer sent straight to retrieval] — still found self.run(query=question)"
+  fail=1
+else
+  echo "PASS  [raw question no longer sent straight to retrieval]"
+fi
+
+echo ""
 echo "== Sanity: everything still imports (syntax-level) =="
 python3 -m py_compile \
   "$APP/services/memory_manager.py" \
