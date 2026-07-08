@@ -140,20 +140,24 @@ export default function LandingPage() {
 
           {/* Future animation placeholder */}
 
-          <div className="hero-demo-placeholder">
-            <div className="placeholder-box">
-              <div className="placeholder-title">
-                Interactive Search Demo
-              </div>
-
-              <p>
-                Soon you'll be able to watch PolicyLens answer policy questions with
-                highlighted evidence and citations.
-              </p>
-            </div>
+          <div className="hero-demo">
+              
+              <video
+                  className="hero-demo-video"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  disablePictureInPicture
+              >
+                  <source
+                      src="/landing-demo.webm"
+                      type="video/webm"
+                  />
+              </video>
           </div>
-        </div>
-      </section>
+          </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
       <section id="how-it-works" className="section section-tinted">
@@ -365,7 +369,7 @@ export default function LandingPage() {
         .hero {
           max-width: 900px;
           margin: 0 auto;
-          min-height: 78vh;
+          min-height: 95vh;
 
           padding: 80px 32px;
 
@@ -388,6 +392,7 @@ export default function LandingPage() {
             margin-top:72px;
         }
 
+
         .placeholder-box{
             max-width:760px;
             margin:auto;
@@ -403,6 +408,32 @@ export default function LandingPage() {
             font-size:18px;
             font-weight:700;
             margin-bottom:10px;
+        }
+
+
+        .hero-demo{
+            margin-top:60px;
+
+            display:flex;
+            justify-content:center;
+        }
+
+        .hero-demo-video{
+            width:100%;
+            max-width:920px;
+
+            border-radius:24px;
+
+            border:1px solid rgba(0,0,0,.08);
+
+            background:#fff;
+
+            box-shadow:
+                0 25px 60px rgba(0,0,0,.08);
+
+            overflow:hidden;
+
+            display:block;
         }
 
         .hero-centered{
