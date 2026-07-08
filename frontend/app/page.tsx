@@ -100,35 +100,58 @@ export default function LandingPage() {
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
       <section className="hero">
-        <div ref={heroRef} className={`hero-copy ${heroVisible ? "in" : ""}`}>
-          <div className="eyebrow">US 🇺🇸 &nbsp;·&nbsp; India 🇮🇳 &nbsp;·&nbsp; Official sources only</div>
+        <div
+          ref={heroRef}
+          className={`hero-copy hero-centered ${heroVisible ? "in" : ""}`}
+        >
+          <div className="eyebrow">
+            US 🇺🇸 · India 🇮🇳 · Official sources only
+          </div>
 
           <h1 className="hero-title">
             Ask policy questions.
             <br />
-            <span className="hero-title-serif">Get answers you can verify.</span>
+            <span className="hero-title-serif">
+              Get answers you can verify.
+            </span>
           </h1>
 
           <p className="hero-sub">
-            PolicyLens reads renewable energy policy documents from the US and
-            India so you don&apos;t have to — every answer is streamed live and
-            traced back to the exact sentence it came from.
+            PolicyLens reads renewable energy policy documents from the US and India,
+            retrieves the most relevant evidence, and generates answers grounded in
+            official government sources.
           </p>
 
-          <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/signup")} className="btn-primary btn-lg">
+          <div className="hero-buttons">
+            <button
+              onClick={() => router.push("/signup")}
+              className="btn-primary btn-lg"
+            >
               Get started free
             </button>
-            <button onClick={() => router.push("/chat")} className="btn-ghost btn-lg">
+
+            <button
+              onClick={() => router.push("/chat")}
+              className="btn-ghost btn-lg"
+            >
               Continue as guest
             </button>
           </div>
 
-          <p className="hero-microcopy"></p>
-        </div>
+          {/* Future animation placeholder */}
 
-        <div className={`hero-visual ${heroVisible ? "in" : ""}`} aria-hidden="true">
-          <EvidenceCardStack />
+          <div className="hero-demo-placeholder">
+            <div className="placeholder-box">
+              <div className="placeholder-title">
+                Interactive Search Demo
+              </div>
+
+              <p>
+                Soon you'll be able to watch PolicyLens answer policy questions with
+                highlighted evidence and citations.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -338,15 +361,53 @@ export default function LandingPage() {
         }
 
         /* ── Hero ──────────────────────────────────────────────────── */
+    
         .hero {
-          max-width: 1160px;
+          max-width: 900px;
           margin: 0 auto;
-          padding: 64px 32px 40px;
-          display: grid;
-          grid-template-columns: 1.05fr 0.95fr;
-          gap: 48px;
+          min-height: 78vh;
+
+          padding: 80px 32px;
+
+          display: flex;
+          justify-content: center;
           align-items: center;
-          min-height: 560px;
+        }
+
+
+        .hero-buttons{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            gap:18px;
+            margin-top:26px;
+            flex-wrap:wrap;
+        }
+
+        .hero-demo-placeholder{
+            margin-top:72px;
+        }
+
+        .placeholder-box{
+            max-width:760px;
+            margin:auto;
+            padding:32px;
+
+            border:1px dashed var(--sidebar-border);
+            border-radius:20px;
+
+            background:#fff;
+        }
+
+        .placeholder-title{
+            font-size:18px;
+            font-weight:700;
+            margin-bottom:10px;
+        }
+
+        .hero-centered{
+            width:100%;
+            text-align:center;
         }
         .hero-copy {
           opacity: 0;
@@ -387,27 +448,15 @@ export default function LandingPage() {
           font-size: 17px;
           line-height: 1.65;
           color: var(--placeholder-text);
-          max-width: 460px;
-          margin: 0 0 28px;
+          max-width: 700px;
+          margin: 0 auto 36px;
+          text-align:center;
         }
         .hero-microcopy {
           font-size: 12.5px;
           color: var(--placeholder-text);
           margin: 14px 0 0;
           opacity: 0.8;
-        }
-
-        /* ── Hero visual: floating evidence cards ─────────────────── */
-        .hero-visual {
-          position: relative;
-          height: 420px;
-          opacity: 0;
-          transform: translateY(18px);
-          transition: opacity 0.7s ease 0.15s, transform 0.7s ease 0.15s;
-        }
-        .hero-visual.in {
-          opacity: 1;
-          transform: translateY(0);
         }
 
         /* ── Sections ──────────────────────────────────────────────── */
@@ -573,157 +622,7 @@ export default function LandingPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Signature hero visual: a small stack of "evidence cards" mirroring the
-// app's real source pane — the actual thing that makes PolicyLens
-// trustworthy, not a generic illustration.
-// ─────────────────────────────────────────────────────────────────────────
-function EvidenceCardStack() {
-  return (
-    <div className="card-stack">
-      <EvidenceCard
-        className="card card-1"
-        badge="DOC"
-        badgeColor="guide"
-        title="DSIRE — Federal ITC"
-        score={94}
-        text="…30% investment tax credit for solar systems installed before the scheduled step-down…"
-      />
-      <EvidenceCard
-        className="card card-2"
-        badge="DOC"
-        badgeColor="gov"
-        title="MNRE — PM Surya Ghar"
-        score={88}
-        text="…households receive a subsidy of up to ₹78,000 for rooftop solar installations…"
-      />
-      <EvidenceCard
-        className="card card-3"
-        badge="WEB"
-        badgeColor="web"
-        title="Grid Parity Report 2026"
-        score={76}
-        text="…utility-scale solar has reached grid parity in 19 additional states…"
-      />
 
-      <style jsx>{`
-        .card-stack {
-          position: relative;
-          width: 100%;
-          height: 100%;
-        }
-        .card {
-          position: absolute;
-          width: 300px;
-          background: #fff;
-          border: 1px solid var(--sidebar-border);
-          border-radius: 16px;
-          padding: 16px 18px;
-          box-shadow: var(--shadow-md);
-          animation: float 6s ease-in-out infinite;
-        }
-        .card-1 {
-          top: 8%;
-          left: 4%;
-          animation-delay: 0s;
-        }
-        .card-2 {
-          top: 42%;
-          left: 30%;
-          animation-delay: 1.4s;
-        }
-        .card-3 {
-          top: 74%;
-          left: 2%;
-          animation-delay: 2.8s;
-        }
-        .card:hover {
-          box-shadow: var(--shadow-lg, 0 16px 48px rgba(45, 30, 110, 0.18));
-        }
-
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px) rotate(var(--rot, 0deg));
-          }
-          50% {
-            transform: translateY(-10px) rotate(var(--rot, 0deg));
-          }
-        }
-        .card-1 { --rot: -3deg; }
-        .card-2 { --rot: 2deg; }
-        .card-3 { --rot: -1.5deg; }
-
-        @media (prefers-reduced-motion: reduce) {
-          .card {
-            animation: none;
-          }
-        }
-        @media (max-width: 860px) {
-          .card {
-            width: 240px;
-          }
-          .card-2 {
-            left: 38%;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function EvidenceCard({
-  className,
-  badge,
-  badgeColor,
-  title,
-  score,
-  text,
-}: {
-  className: string;
-  badge: "DOC" | "WEB";
-  badgeColor: "guide" | "gov" | "web";
-  title: string;
-  score: number;
-  text: string;
-}) {
-  return (
-    <div className={className}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{title}</span>
-      </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 800,
-            padding: "2px 7px",
-            borderRadius: 6,
-            background: `var(--badge-${badgeColor}-bg)`,
-            color: `var(--badge-${badgeColor}-text)`,
-          }}
-        >
-          {badge}
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "2px 7px",
-            borderRadius: 999,
-            background: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            color: "#16a34a",
-          }}
-        >
-          {score}% match
-        </span>
-      </div>
-      <p style={{ fontSize: 12, lineHeight: 1.5, color: "var(--placeholder-text)", margin: 0 }}>
-        {text}
-      </p>
-    </div>
-  );
-}
 
 function Step({ n, title, body }: { n: number; title: string; body: string }) {
   return (
