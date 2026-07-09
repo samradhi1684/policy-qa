@@ -10,15 +10,17 @@ from fastapi import (
 from pydantic import BaseModel
 from faster_whisper import WhisperModel
 
-from app.services.format_service import (
-    detect_format,
-)
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 
 from fastapi import Depends
 from app.services.title_service import generate_title
+
+
+from app.services.document_service import (
+    extract_pdf_text,
+    extract_md_text,
+)
 
 from app.dependencies import (
     get_current_user,
@@ -49,15 +51,6 @@ from fastapi import File
 
 from app.adapters.llm_client import LLMClient
 
-from app.services.document_service import (
-    extract_pdf_text,
-    extract_md_text,
-    chunk_text,
-)
-
-from app.services.document_retriever import (
-    retrieve_chunks,
-)
 
 from app.services import session_documents
 
@@ -193,10 +186,6 @@ async def query_in_chat(
                 status_code=404,
                 detail="Chat not found",
             )
-    print(
-        "WEB SEARCH RECEIVED:",
-        web_search
-    )
 
     history = []
 
@@ -207,104 +196,13 @@ async def query_in_chat(
         )
 
     #
-    # DOCUMENT MODE
-    #
-    if file:
-
-        if file.filename.endswith(".pdf"):
-
-            text = extract_pdf_text(
-                file.file
-            )
-
-        elif file.filename.endswith(".md"):
-
-            text = extract_md_text(
-                file.file
-            )
-
-        else:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Unsupported file type",
-            )
-
-        chunks = chunk_text(text)
-
-        retrieved = retrieve_chunks(
-            question,
-            chunks,
-        )
-
-        context = "\n\n".join(
-            r["chunk_text"]
-            for r in retrieved
-        )
-
-        output_format = detect_format(
-            question
-        )
-
-        prompt = f"""
-        Answer using ONLY the context.
-
-        OUTPUT FORMAT:
-        {output_format.value}
-
-        Rules:
-
-        paragraph:
-        normal answer
-
-        bullets:
-        return bullet points
-
-        table:
-        return markdown table
-
-        json:
-        return valid json only
-
-        markdown:
-        return markdown document
-
-        report:
-        return a structured report with:
-        - Executive Summary
-        - Findings
-        - Analysis
-        - Conclusion
-
-        CONTEXT:
-        {context}
-
-        QUESTION:
-        {question}
-        """
-
-        answer = llm.generate(
-            prompt,
-            temperature=0.2,
-        )
-
-        result = {
-            "answer": answer,
-            "sources": retrieved,
-        }
-
-    #
-    # EXISTING RAG MODE
-    #
-    else:
-
-        result = pipeline.answer(
-                    question,
-                    chat_history=history,
-                    web_search=web_search,
-                    chat_id=chat_id if current_user else None,
-                    country=country,
-                )
+    result = pipeline.answer(
+        question,
+        chat_history=history,
+        web_search=web_search,
+        chat_id=chat_id if current_user else None,
+        country=country,
+    )
 
     
     if current_user:
@@ -443,8 +341,6 @@ async def query_in_chat_stream(
       data: {"token": "..."}                                -> repeated, one per token
       data: {"done": true, "sources": [...], "title": "..."} -> final event
 
-    Document-upload mode still goes through the non-streaming /query
-    endpoint above.
     """
 
     chat = None
@@ -477,40 +373,7 @@ async def query_in_chat_stream(
         and chat.title == "New Chat"
     )
 
-    # ── Document-mode: file attached inline with the question ────────────────
-    doc_prompt: str | None = None
-    doc_sources: list = []
-    if file:
-        if file.filename.endswith(".pdf"):
-            raw_text = await run_in_threadpool(extract_pdf_text, file.file)
-        elif file.filename.endswith((".md", ".txt")):
-            raw_text = await run_in_threadpool(extract_md_text, file.file)
-        else:
-            async def _unsupported():
-                yield f"data: {json.dumps({'token': 'Unsupported file type. Please upload a PDF, Markdown, or text file.'})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'sources': [], 'title': None})}\n\n"
-            return StreamingResponse(
-                _unsupported(),
-                media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-            )
 
-        chunks = chunk_text(raw_text)
-        retrieved = retrieve_chunks(question, chunks)
-        doc_sources = retrieved
-        context = "\n\n".join(r["chunk_text"] for r in retrieved)
-        output_format = detect_format(question)
-        doc_prompt = f"""
-Answer using ONLY the context below.
-
-OUTPUT FORMAT: {output_format.value}
-
-CONTEXT:
-{context}
-
-QUESTION:
-{question}
-""".strip()
 
     async def event_stream():
         # Tell the frontend generation has started so it can show a
@@ -518,24 +381,6 @@ QUESTION:
         yield f"data: {json.dumps({'status': 'thinking'})}\n\n"
 
         full_answer = ""
-
-        if doc_prompt is not None:
-            # Document mode: stream from the pre-built doc prompt
-            for token in await run_in_threadpool(
-                lambda: list(llm.generate_stream(doc_prompt, temperature=0.2))
-            ):
-                full_answer += token
-                yield f"data: {json.dumps({'token': token})}\n\n"
-
-            if current_user:
-                await create_message(db, chat_id, "assistant", full_answer)
-
-            yield (
-                "data: "
-                + json.dumps({"done": True, "sources": doc_sources, "title": None})
-                + "\n\n"
-            )
-            return
 
         # Retrieval + rerank + prompt-building is CPU/GPU/network bound and
         # synchronous, so it's run off the event loop in a thread.

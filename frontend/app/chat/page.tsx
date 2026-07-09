@@ -15,7 +15,6 @@ import {
   createChat,
   listChats,
   getMessages,
-  queryInChat,
   queryInChatStream,
   regenerateAnswer,
   deleteChat,
@@ -312,9 +311,6 @@ export default function Home() {
         },
       ]);
 
-      // Capture the file before clearing it so we can pass it to the stream.
-      const fileToSend = selectedFile;
-      setSelectedFile(null);
 
       // Placeholder assistant message in "thinking" state.
       setActiveMessages((prev) => [
@@ -342,8 +338,8 @@ export default function Home() {
                 content: last.content + tok,
               };
               return next;
-            });
-          },
+            }
+          };
 
           onDone: ({ sources }) => {
             setActiveMessages((prev) => {
@@ -354,7 +350,7 @@ export default function Home() {
               return next;
             });
           },
-        }, fileToSend);
+        },);
 
         if (token) {
           const updatedChats = await listChats();
@@ -387,7 +383,7 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [question, loading, activeChatId, token, selectedFile]
+    [question, loading, activeChatId, token, ]
   );
 
   return (

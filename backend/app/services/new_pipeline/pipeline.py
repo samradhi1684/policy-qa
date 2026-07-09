@@ -872,22 +872,42 @@ class Pipeline:
         # Now: both run in parallel — total wait ≈ max(embed, extract) instead
         # of embed + extract. This is a pure scheduling change; neither
         # function's internal logic or output is modified.
-        with Timer("Pipeline — concurrent embed() + extract()"):
-            emb_future = self._io_pool.submit(embed, query)
-            entities_future = self._io_pool.submit(self.extractor.extract, query)
-            q_emb = emb_future.result()
-            query_entities = entities_future.result()
+        # ------------------------------------------------------
+        # DOCUMENT MODE
+        # ------------------------------------------------------
 
-        # 2. Build candidate pool (entity + semantic, then adjacent expand)
-        pool = self.retriever.retrieve(query, query_entities, q_emb)
-
-        # 2b. Merge chat-session uploaded document chunks (if any) into the
-        # pool so they compete in the same cross-encoder rerank as corpus
-        # chunks. Their ids are namespaced ("upload::...") so nothing
-        # downstream can confuse them with corpus chunks.
         if extra_chunks:
-            existing = {c["chunk_id"] for c in pool}
-            pool = pool + [c for c in extra_chunks if c["chunk_id"] not in existing]
+
+            logger.info("Document mode enabled - using uploaded documents only")
+
+            query_entities = []
+
+            pool = extra_chunks
+
+        # ------------------------------------------------------
+        # NORMAL CORPUS MODE
+        # ------------------------------------------------------
+
+        else:
+
+            with Timer("Pipeline — concurrent embed() + extract()"):
+
+                emb_future = self._io_pool.submit(embed, query)
+
+                entities_future = self._io_pool.submit(
+                    self.extractor.extract,
+                    query,
+                )
+
+                q_emb = emb_future.result()
+
+                query_entities = entities_future.result()
+
+            pool = self.retriever.retrieve(
+                query,
+                query_entities,
+                q_emb,
+            )
 
         if not pool:
             is_yn = question_type.lower().startswith("yes")
@@ -904,7 +924,18 @@ class Pipeline:
             }
 
         # 3. Rerank
-        top_chunks = self.reranker.rerank(query, pool)
+        if extra_chunks:
+
+            logger.info("Skipping reranker for uploaded documents")
+
+            top_chunks = pool
+
+        else:
+
+            top_chunks = self.reranker.rerank(
+                query,
+                pool,
+            )
 
         # 4. Generate answer (+ which evidence sentences it actually cited)
         if generate_answer:
