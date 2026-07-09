@@ -539,27 +539,46 @@ export default function Sidebar({
               </div>
             </button>
 
-            <button
-              onClick={() => {
-                logout();
-                // replace() so the authenticated chat page is not left as
-                // the previous history entry after logging out.
-                window.location.replace("/signin");
-              }}
-              style={{
-                width: "100%",
-                marginTop: "6px",
-                padding: "8px",
-                borderRadius: "10px",
-                border: "1px solid var(--sidebar-border)",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "13px",
-                color: "#ef4444",
-              }}
-            >
-              Logout
-            </button>
+            
+            {isGuest ? (
+              <button
+                onClick={() => window.location.href = "/signup"}
+                style={{
+                  width: "100%",
+                  marginTop: "6px",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "var(--primary)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                Create an Account
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  logout();
+                  window.location.replace("/signin");
+                }}
+                style={{
+                  width: "100%",
+                  marginTop: "6px",
+                  padding: "8px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--sidebar-border)",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  color: "#ef4444",
+                }}
+              >
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </aside>
