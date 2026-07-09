@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.api.document import router as document_router
-from app.api.query import router as query_router
+
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.chats import router as chats_router
 from app.routers.auth import router as auth_router
@@ -32,9 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(
-    query_router
-)
 
 app.include_router(auth_router)
 
