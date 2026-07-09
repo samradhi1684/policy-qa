@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
 from pathlib import Path
 
 
@@ -46,7 +47,11 @@ async def document_titles(body: TitlesBody):
     generated once with a lightweight LLM call, cached on disk, and
     fall back to the filename if generation fails."""
     ids = body.document_ids[:50]  # sanity cap
-    return {"titles": get_titles(ids)}
+    # get_titles() can make blocking LLM calls (requests) for any
+    # not-yet-cached document id — keep it off the event loop so it
+    # doesn't stall other concurrent requests.
+    titles = await run_in_threadpool(get_titles, ids)
+    return {"titles": titles}
 
 
 @router.get("/{document_id}")

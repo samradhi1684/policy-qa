@@ -1267,18 +1267,23 @@ class Pipeline:
             logger.exception("Session-document retrieval failed; continuing without uploads")
             return None
 
-    def stream_answer(
+    async def stream_answer(
         self,
         prompt: str,
     ):
         """
-        Stream tokens from the LLM.
+        Stream tokens from the LLM asynchronously. This is an async
+        generator so iterating it (`async for`) yields control back
+        to the FastAPI event loop between tokens instead of blocking
+        it — required for multiple users' streams to make progress
+        concurrently.
         """
-        yield from llm_client.generate_stream(
+        async for token in llm_client.generate_stream(
             prompt=prompt,
             temperature=0.1,
             max_tokens=3000,
-        )
+        ):
+            yield token
 
 
     def generate_chat_title(self, question: str):

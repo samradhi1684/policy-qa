@@ -127,7 +127,7 @@ export default function LandingPage() {
               onClick={() => router.push("/signup")}
               className="btn-primary btn-lg"
             >
-              Get started free
+              Get started
             </button>
 
             <button
@@ -426,7 +426,7 @@ export default function LandingPage() {
 
             border:none;
             box-shadow:none;
-            border-radius:0;
+            border-radius: 30px;
         }
 
         .hero-centered{

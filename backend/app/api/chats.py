@@ -250,8 +250,11 @@ async def query_in_chat(
         # "clarify"/planner failures every single turn.
         history = _parse_guest_history(client_history)
 
-    #
-    result = pipeline.answer(
+    # pipeline.answer() does retrieval + rerank + LLM generation using
+    # blocking HTTP calls; run it in a worker thread so it doesn't
+    # freeze the event loop and block every other concurrent request.
+    result = await run_in_threadpool(
+        pipeline.answer,
         question,
         chat_history=history,
         web_search=web_search,
@@ -313,8 +316,9 @@ async def query_in_chat(
 
         try:
 
-            title = pipeline.generate_chat_title(
-                question
+            title = await run_in_threadpool(
+                pipeline.generate_chat_title,
+                question,
             )
 
             await rename_chat(
@@ -345,7 +349,8 @@ async def query_in_chat(
     #
     if current_user and chat and chat.title == "New Chat":
 
-        title = generate_title(
+        title = await run_in_threadpool(
+            generate_title,
             question,
             result["answer"],
         )
@@ -469,7 +474,12 @@ async def query_in_chat_stream(
             full_answer = fallback
             yield f"data: {json.dumps({'token': fallback})}\n\n"
         else:
-            for token in pipeline.stream_answer(prompt):
+            # pipeline.stream_answer() is a native async generator (backed
+            # by httpx.AsyncClient), so `async for` yields control back to
+            # the event loop between tokens. Other concurrent requests
+            # (other users' /query/stream calls, other routes) keep making
+            # progress while this one waits on the next chunk from vLLM.
+            async for token in pipeline.stream_answer(prompt):
                 full_answer += token
                 yield f"data: {json.dumps({'token': token})}\n\n"
         
@@ -485,7 +495,9 @@ async def query_in_chat_stream(
 
         if is_new_chat:
             try:
-                title = generate_title(question, full_answer)
+                title = await run_in_threadpool(
+                    generate_title, question, full_answer
+                )
                 await rename_chat(
                     db,
                     chat_id,
@@ -557,17 +569,18 @@ async def transcribe_audio(
 
     try:
 
-        segments, info = (
-            whisper_model.transcribe(
+        def _transcribe():
+            segments, info = whisper_model.transcribe(
                 temp_path,
-                beam_size=5
+                beam_size=5,
             )
-        )
+            # segments is a lazy generator tied to the model call, so it
+            # must be consumed inside the same worker-thread call too.
+            return " ".join(seg.text for seg in segments).strip()
 
-        text = " ".join(
-            seg.text
-            for seg in segments
-        ).strip()
+        # CPU-bound model inference — run off the event loop so it
+        # doesn't block other concurrent users' requests while it runs.
+        text = await run_in_threadpool(_transcribe)
 
         return {
             "text": text
@@ -822,7 +835,8 @@ async def regenerate_answer(
             detail="Chat not found",
         )
 
-    result = pipeline.answer(
+    result = await run_in_threadpool(
+        pipeline.answer,
         body.question,
         retrieved_override=body.sources,
         temperature=0.7,
@@ -856,9 +870,9 @@ async def upload_chat_document(
     lower = filename.lower()
 
     if lower.endswith(".pdf"):
-        text = extract_pdf_text(file.file)
+        text = await run_in_threadpool(extract_pdf_text, file.file)
     elif lower.endswith(".md") or lower.endswith(".txt"):
-        text = extract_md_text(file.file)
+        text = await run_in_threadpool(extract_md_text, file.file)
     else:
         raise HTTPException(
             status_code=400,
@@ -866,7 +880,11 @@ async def upload_chat_document(
         )
 
     try:
-        meta = session_documents.add_document(chat_id, filename, text)
+        # Chunking + embedding is CPU/network bound and synchronous —
+        # keep it off the event loop.
+        meta = await run_in_threadpool(
+            session_documents.add_document, chat_id, filename, text
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

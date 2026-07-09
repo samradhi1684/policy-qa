@@ -7,6 +7,7 @@ set -euo pipefail
 : "${VLLM_MODEL:=Qwen/Qwen2.5-32B-Instruct-AWQ}"
 : "${VLLM_GPU_MEM_UTIL:=0.88}"
 : "${VLLM_MAX_MODEL_LEN:=8192}"
+: "${VLLM_MAX_NUM_SEQS:=256}"
 
 exec python -m vllm.entrypoints.openai.api_server \
   --model "$VLLM_MODEL" \
@@ -16,6 +17,7 @@ exec python -m vllm.entrypoints.openai.api_server \
   --quantization awq_marlin \
   --gpu-memory-utilization "$VLLM_GPU_MEM_UTIL" \
   --max-model-len "$VLLM_MAX_MODEL_LEN" \
+  --max-num-seqs "$VLLM_MAX_NUM_SEQS" \
   --served-model-name qwen-rag \
   --api-key "$VLLM_API_KEY" \
   --trust-remote-code \
