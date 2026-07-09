@@ -1,4 +1,5 @@
 import requests
+import httpx
 import logging
 import json
 
@@ -6,6 +7,19 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
+    """
+    HTTP client for the vLLM OpenAI-compatible server.
+
+    - generate() / generate_stream_sync() : blocking, use only from a
+      thread (run_in_threadpool) or from non-async code paths (title
+      generation, doc-title generation, etc.).
+    - agenerate() / generate_stream() : native async, safe to call
+      directly from an `async def` FastAPI route. Uses a shared
+      httpx.AsyncClient with connection pooling so many concurrent
+      requests can be in flight at once without blocking the event
+      loop or each other.
+    """
+
     def __init__(
         self,
         model: str = "qwen-rag",
@@ -15,11 +29,44 @@ class LLMClient:
         self.model   = model
         self.host    = host.rstrip("/")
         self.api_key = api_key
+
+        # Sync session — used only for blocking call sites that are
+        # already isolated in a worker thread.
         self._session = requests.Session()
         self._session.headers.update({
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         })
+
+        # Shared async client — reused across requests so concurrent
+        # users share one connection pool instead of opening a new
+        # TCP/TLS connection per request. Created lazily so importing
+        # this module never requires a running event loop.
+        self._async_client: httpx.AsyncClient | None = None
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.api_key}",
+                },
+                timeout=httpx.Timeout(300.0),
+                limits=httpx.Limits(
+                    max_connections=100,
+                    max_keepalive_connections=50,
+                ),
+            )
+        return self._async_client
+
+    async def aclose(self):
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+
+    # ------------------------------------------------------------------
+    # Blocking API (call only from a thread / threadpool)
+    # ------------------------------------------------------------------
 
     def generate(
         self,
@@ -40,22 +87,15 @@ class LLMClient:
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
 
-    def generate_stream(
+    def generate_stream_sync(
         self,
         prompt: str,
         temperature: float = 0.1,
         max_tokens: int = 512,
     ):
-        """
-        Same request as generate(), but with stream=True. vLLM's
-        OpenAI-compatible server emits Server-Sent-Events lines like:
-
-            data: {"choices":[{"delta":{"content":"Hello"}, ...}]}
-            data: {"choices":[{"delta":{"content":" world"}, ...}]}
-            data: [DONE]
-
-        This yields just the text deltas, in order, as they arrive.
-        """
+        """Blocking generator. Only safe to iterate from inside a worker
+        thread (e.g. via run_in_threadpool) — iterating it directly on
+        the event loop will stall every other concurrent request."""
         with self._session.post(
             f"{self.host}/v1/chat/completions",
             json={
@@ -80,6 +120,87 @@ class LLMClient:
                     continue
 
                 data = decoded[len("data: "):].strip()
+
+                if data == "[DONE]":
+                    break
+
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Skipping malformed stream chunk: {data!r}")
+                    continue
+
+                delta = (
+                    chunk.get("choices", [{}])[0]
+                    .get("delta", {})
+                    .get("content")
+                )
+
+                if delta:
+                    yield delta
+
+    # ------------------------------------------------------------------
+    # Async API (safe to call directly from `async def` routes)
+    # ------------------------------------------------------------------
+
+    async def agenerate(
+        self,
+        prompt: str,
+        temperature: float = 0.1,
+        max_tokens: int = 512,
+    ) -> str:
+        client = self._get_async_client()
+        response = await client.post(
+            f"{self.host}/v1/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"].strip()
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float = 0.1,
+        max_tokens: int = 512,
+    ):
+        """
+        Native async generator. Awaiting/iterating this yields control
+        back to the event loop between chunks, so other concurrent
+        requests (other users' streams, other routes) keep making
+        progress while this one waits on network I/O from vLLM.
+
+        vLLM itself does continuous batching, so multiple concurrent
+        generate_stream() calls will genuinely interleave token
+        generation on the GPU side too — this just stops the backend
+        from serializing them artificially in front of that.
+        """
+        client = self._get_async_client()
+        async with client.stream(
+            "POST",
+            f"{self.host}/v1/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+            },
+        ) as response:
+            response.raise_for_status()
+
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+
+                if not line.startswith("data: "):
+                    continue
+
+                data = line[len("data: "):].strip()
 
                 if data == "[DONE]":
                     break
@@ -222,4 +343,3 @@ class RerankerClient:
         )
         response.raise_for_status()
         return response.json()["results"]
-

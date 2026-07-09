@@ -140,22 +140,13 @@ export default function LandingPage() {
 
           {/* Future animation placeholder */}
 
+          
           <div className="hero-demo">
-              
-              <video
-                  className="hero-demo-video"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                  disablePictureInPicture
-              >
-                  <source
-                      src="/landing-demo.webm"
-                      type="video/webm"
-                  />
-              </video>
+            <img
+              src="/landing-demo.png"
+              alt="PolicyLens Demo"
+              className="hero-demo-image"
+            />
           </div>
           </div>
           </section>
@@ -419,22 +410,23 @@ export default function LandingPage() {
             justify-content:center;
         }
 
-        .hero-demo-video{
+      
+        .hero-demo{
+            margin-top:64px;
+            display:flex;
+            justify-content:center;
+        }
+
+        
+        .hero-demo-image{
             width:100%;
-            max-width:920px;
-
-            border-radius:24px;
-
-            border:1px solid rgba(0,0,0,.08);
-
-            background:#fff;
-
-            box-shadow:
-                0 25px 60px rgba(0,0,0,.08);
-
-            overflow:hidden;
-
+            max-width:1100px;
+            height:auto;
             display:block;
+
+            border:none;
+            box-shadow:none;
+            border-radius:0;
         }
 
         .hero-centered{
