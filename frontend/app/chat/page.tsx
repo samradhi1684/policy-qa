@@ -327,19 +327,23 @@ export default function Home() {
         await queryInChatStream(chatId, currentQuestion, countryRef.current, {
           onThinking: () => {},
 
+          
           onToken: (tok) => {
             setActiveMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
+
               if (!last || last.role !== "assistant") return prev;
+
               next[next.length - 1] = {
                 ...last,
                 thinking: false,
                 content: last.content + tok,
               };
+
               return next;
-            }
-          };
+            });
+          },
 
           onDone: ({ sources }) => {
             setActiveMessages((prev) => {
