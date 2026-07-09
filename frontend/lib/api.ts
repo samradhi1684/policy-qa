@@ -368,10 +368,11 @@ export async function queryInChatStream(
     onToken?: (token: string) => void;
     onDone?: (payload: {
       sources: Source[];
-      title?: string |null;
+      title?: string | null;
     }) => void;
     onError?: (err: unknown) => void;
-  }
+  },
+  file?: File | null
 ): Promise<void> {
 
   const token = localStorage.getItem("token");
@@ -379,6 +380,7 @@ export async function queryInChatStream(
   const formData = new FormData();
   formData.append("question", question);
   formData.append("country", country);
+  if (file) formData.append("file", file);
 
   const res = await fetch(
     `${BASE}/chats/${chatId}/query/stream`,

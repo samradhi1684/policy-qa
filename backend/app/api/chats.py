@@ -429,6 +429,7 @@ async def query_in_chat(
 async def query_in_chat_stream(
     chat_id: str,
     question: str = Form(...),
+    file: UploadFile | None = File(None),
     web_search: bool = Form(False),
     country: str = Form("dsire"),
     current_user: User | None = Depends(get_optional_current_user),
@@ -476,10 +477,65 @@ async def query_in_chat_stream(
         and chat.title == "New Chat"
     )
 
+    # ── Document-mode: file attached inline with the question ────────────────
+    doc_prompt: str | None = None
+    doc_sources: list = []
+    if file:
+        if file.filename.endswith(".pdf"):
+            raw_text = await run_in_threadpool(extract_pdf_text, file.file)
+        elif file.filename.endswith((".md", ".txt")):
+            raw_text = await run_in_threadpool(extract_md_text, file.file)
+        else:
+            async def _unsupported():
+                yield f"data: {json.dumps({'token': 'Unsupported file type. Please upload a PDF, Markdown, or text file.'})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'sources': [], 'title': None})}\n\n"
+            return StreamingResponse(
+                _unsupported(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
+        chunks = chunk_text(raw_text)
+        retrieved = retrieve_chunks(question, chunks)
+        doc_sources = retrieved
+        context = "\n\n".join(r["chunk_text"] for r in retrieved)
+        output_format = detect_format(question)
+        doc_prompt = f"""
+Answer using ONLY the context below.
+
+OUTPUT FORMAT: {output_format.value}
+
+CONTEXT:
+{context}
+
+QUESTION:
+{question}
+""".strip()
+
     async def event_stream():
         # Tell the frontend generation has started so it can show a
         # "Thinking..." state immediately, before retrieval/rerank finishes.
         yield f"data: {json.dumps({'status': 'thinking'})}\n\n"
+
+        full_answer = ""
+
+        if doc_prompt is not None:
+            # Document mode: stream from the pre-built doc prompt
+            for token in await run_in_threadpool(
+                lambda: list(llm.generate_stream(doc_prompt, temperature=0.2))
+            ):
+                full_answer += token
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
+            if current_user:
+                await create_message(db, chat_id, "assistant", full_answer)
+
+            yield (
+                "data: "
+                + json.dumps({"done": True, "sources": doc_sources, "title": None})
+                + "\n\n"
+            )
+            return
 
         # Retrieval + rerank + prompt-building is CPU/GPU/network bound and
         # synchronous, so it's run off the event loop in a thread.
@@ -489,8 +545,6 @@ async def query_in_chat_stream(
             chat_id if current_user else None,
             country,
         )
-
-        full_answer = ""
 
         if fallback is not None:
             full_answer = fallback

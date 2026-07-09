@@ -312,11 +312,9 @@ export default function Home() {
         },
       ]);
 
-      // Legacy one-shot file+question path (kept for compatibility, only
-      // reachable when a file is attached but not yet uploaded).
-      if (selectedFile && !token) {
-        setSelectedFile(null);
-      }
+      // Capture the file before clearing it so we can pass it to the stream.
+      const fileToSend = selectedFile;
+      setSelectedFile(null);
 
       // Placeholder assistant message in "thinking" state.
       setActiveMessages((prev) => [
@@ -356,7 +354,7 @@ export default function Home() {
               return next;
             });
           },
-        });
+        }, fileToSend);
 
         if (token) {
           const updatedChats = await listChats();

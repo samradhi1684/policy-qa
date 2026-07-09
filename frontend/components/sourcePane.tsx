@@ -75,7 +75,14 @@ export default function SourcePane({
   }, [sources]);
 
   function displayTitle(s: Source): string {
-    return titles[s.document_id] ?? s.document_id.replace(/_/g, " ");
+    if ((s as any).is_web) return s.document_id;
+    if (s.document_id.startsWith("upload-")) {
+      // Uploaded docs: title comes from the backend but also lives in
+      // the session store.  Fall back to a clean "Uploaded document" label.
+      return titles[s.document_id] ?? "Uploaded document";
+    }
+    // Corpus docs: show a loading hint while the async LLM title resolves.
+    return titles[s.document_id] ?? "Loading title…";
   }
 
   const [panelWidth, setPanelWidth] = useState(520);
@@ -172,7 +179,7 @@ export default function SourcePane({
   function sourcesToText(): string {
     return sources
       .map((s, i) => {
-        const title = s.document_id.replace(/_/g, " ");
+        const title = displayTitle(s);
         const desc = (s as any).is_web ? s.chunk_text : s.evidence;
         const link = (s as any).is_web ? s.evidence : "";
         return `${i + 1}. ${title}\n${desc || ""}${link ? `\n${link}` : ""}\n`;
@@ -187,7 +194,7 @@ export default function SourcePane({
   function exportMarkdown() {
     const md = sources
       .map((s, i) => {
-        const title = s.document_id.replace(/_/g, " ");
+        const title = displayTitle(s);
         const desc = (s as any).is_web ? s.chunk_text : s.evidence;
         const link = (s as any).is_web ? s.evidence : "";
         return `**${i + 1}. ${title}**\n\n${desc || ""}${
@@ -203,7 +210,7 @@ export default function SourcePane({
     if (!win) return;
     const rows = sources
       .map((s, i) => {
-        const title = s.document_id.replace(/_/g, " ");
+        const title = displayTitle(s);
         const desc = (s as any).is_web ? s.chunk_text : s.evidence;
         return `<h3>${i + 1}. ${escapeHtml(title)}</h3><p>${escapeHtml(
           desc || ""
