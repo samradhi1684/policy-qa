@@ -1,4 +1,3 @@
-
 const BASE =
   process.env.NEXT_PUBLIC_BACKEND_URL ??
   "http://127.0.0.1:8000";
@@ -118,7 +117,8 @@ export async function queryInChat(
   question: string,
   file?: File,
   webSearch: boolean = false,
-  country: string = "dsire"
+  country: string = "dsire",
+  history?: { role: string; content: string }[]
 ): Promise<{
   answer: string;
   sources: Source[];
@@ -151,6 +151,10 @@ export async function queryInChat(
     );
 
     formData.append("country", country);
+
+    if (!token && history && history.length > 0) {
+      formData.append("client_history", JSON.stringify(history));
+    }
 
     const res =
       await fetch(
@@ -189,6 +193,10 @@ export async function queryInChat(
 
   formData.append("country", country);
 
+  if (!token && history && history.length > 0) {
+    formData.append("client_history", JSON.stringify(history));
+  }
+
   const res = await fetch(
     `${BASE}/chats/${chatId}/query`,
     {
@@ -208,6 +216,7 @@ export async function queryInChat(
 
   return res.json();
 }
+
 
 export async function deleteChat(chatId: string): Promise<void> {
   const token = localStorage.getItem("token");
@@ -371,7 +380,8 @@ export async function queryInChatStream(
       title?: string | null;
     }) => void;
     onError?: (err: unknown) => void;
-  }
+  },
+  history?: { role: string; content: string }[]
 ): Promise<void> {
 
   const token = localStorage.getItem("token");
@@ -379,6 +389,15 @@ export async function queryInChatStream(
   const formData = new FormData();
   formData.append("question", question);
   formData.append("country", country);
+
+  // Guests have no DB-backed chat/messages row on the backend, so without
+  // this the router/planner never see prior turns and follow-ups like
+  // "what are the rounds involved in it?" can never be resolved. Only
+  // needed (and only sent) when there's no logged-in user — authenticated
+  // chats get their history from the DB server-side.
+  if (!token && history && history.length > 0) {
+    formData.append("client_history", JSON.stringify(history));
+  }
 
 
   const res = await fetch(

@@ -20,6 +20,21 @@ from app.adapters.llm_client import (
     EmbeddingClient,
 )
 
+# Routing / reference-resolution / memory — same components RAGPipeline
+# (services/rag_pipeline.py) used, wired in here so new_pipeline gets the
+# same behaviour: general/small-talk/out-of-scope/ambiguous messages are
+# classified BEFORE retrieval and short-circuit without touching the
+# index, and domain follow-ups ("what about it", "how many rounds were
+# involved in it") get their pronouns/references resolved into a
+# standalone query before that query is embedded/retrieved against.
+# Previously this pipeline always retrieved for every message and always
+# embedded the raw follow-up text as-is, which is why pronoun follow-ups
+# failed to retrieve anything relevant.
+from app.services.routing.conversation_router import ConversationRouter
+from app.services.planner import Planner
+from app.services.memory_manager import MemoryManager
+from app.services.prompt_builder import PromptBuilder
+
 llm_client = LLMClient()
 reranker_client = RerankerClient(
 
@@ -853,6 +868,76 @@ class Pipeline:
         # durations from the critical path almost for free.
         self._io_pool = ThreadPoolExecutor(max_workers=2)
 
+        # Step: routing + reference resolution, ported over from
+        # RAGPipeline so this pipeline gets the same conversational
+        # short-circuiting and follow-up handling.
+        self.router = ConversationRouter(llm_client)
+        self.planner = Planner(llm_client)
+        self.memory = MemoryManager()
+        self.prompt_builder = PromptBuilder()
+
+    def _plan(
+        self,
+        question: str,
+        chat_history=None,
+    ):
+        """
+        Classify the message and, for anything that actually needs the
+        policy index, resolve references ("it", "that", "how many rounds
+        were involved in it") into a standalone query using conversation
+        history.
+
+        Returns (memory_context, route, resolved_query, short_circuit):
+          - short_circuit is a finished answer string for "general",
+            "out_of_scope" and "clarify" routes — callers should return
+            it directly without running retrieval.
+          - short_circuit is None for "domain" routes — callers should
+            proceed to retrieval using `resolved_query` (the reference-
+            resolved standalone query) instead of the raw `question`.
+        """
+        memory_context = self.memory.build_context_with_summary(
+            chat_history,
+            llm_client,
+        )
+
+        route = self.router.route(question, memory_context)
+        logger.info(f"[ROUTER] category={route.category} confidence={route.confidence}")
+
+        if route.is_general():
+            raw = llm_client.generate(
+                self.prompt_builder.build_conversational(question, memory_context),
+                temperature=0.4,
+                max_tokens=200,
+            )
+            return memory_context, route, question, str(getattr(raw, "content", raw)).strip()
+
+        if route.is_out_of_scope():
+            raw = llm_client.generate(
+                self.prompt_builder.build_out_of_scope(question),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return memory_context, route, question, str(getattr(raw, "content", raw)).strip()
+
+        if route.is_clarify():
+            raw = llm_client.generate(
+                self.prompt_builder.build_clarification(question, memory_context),
+                temperature=0.3,
+                max_tokens=150,
+            )
+            return memory_context, route, question, str(getattr(raw, "content", raw)).strip()
+
+        # route.category == "domain" — resolve references into a
+        # standalone query before retrieval/embedding touches it.
+        decision = self.planner.plan(question, memory_context)
+        logger.info(f"[PLANNER] {decision}")
+
+        resolved_query = decision.get("standalone_query")
+        if not isinstance(resolved_query, str) or not resolved_query.strip():
+            resolved_query = question
+
+        return memory_context, route, resolved_query, None
+
     def run(
         self,
         query: str,
@@ -989,8 +1074,21 @@ class Pipeline:
         for compatibility with the existing API.
         """
         with Timer("Pipeline.answer() — TOTAL (incl. run + source formatting)"):
-            extra = self._session_chunks(question, chat_id)
-            result = self.run(query=question, extra_chunks=extra)
+            memory_context, route, resolved_query, short_circuit = self._plan(
+                question,
+                chat_history,
+            )
+
+            if short_circuit is not None:
+                return {
+                    "answer": short_circuit,
+                    "sources": [],
+                    "used_source_count": 0,
+                    "route": route.category,
+                }
+
+            extra = self._session_chunks(resolved_query, chat_id)
+            result = self.run(query=resolved_query, extra_chunks=extra)
 
             citations    = result.get("citations", [])
             evidence_map = result.get("evidence_map", {})
@@ -1052,23 +1150,36 @@ class Pipeline:
     def prepare_for_stream(
         self,
         question: str,
+        chat_history=None,
         chat_id: Optional[str] = None,
         country: Optional[str] = None,
     ):
         """
-        Performs retrieval/reranking exactly like answer(),
-        but stops before generation.
+        Performs routing + (for domain messages) reference resolution and
+        retrieval/reranking exactly like answer(), but stops before
+        generation so the caller can stream tokens.
 
         Returns:
             prompt,
             sources,
-            fallback
+            fallback   -> already-finished text for "general"/"out_of_scope"/
+                          "clarify" routes, or when retrieval found nothing.
+                          Non-None means the caller should NOT stream from
+                          the LLM and should just emit this text as-is.
         """
 
+        _memory_context, route, resolved_query, short_circuit = self._plan(
+            question,
+            chat_history,
+        )
+
+        if short_circuit is not None:
+            return None, [], short_circuit
+
         result = self.run(
-            query=question,
+            query=resolved_query,
             generate_answer=False,
-            extra_chunks=self._session_chunks(question, chat_id),
+            extra_chunks=self._session_chunks(resolved_query, chat_id),
         )
 
         citations = result.get("citations", [])

@@ -73,6 +73,54 @@ from io import BytesIO
 import json
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
+from types import SimpleNamespace
+
+
+def _parse_guest_history(raw: str | None):
+    """
+    Guests (no logged-in account) have no DB-backed chat/messages row, so
+    get_recent_messages() has nothing to fetch — memory_context ends up
+    permanently empty and the router/planner can never resolve follow-up
+    references ("it", "those rounds", ...), no matter how the question is
+    phrased. The frontend already keeps the full transcript in React state
+    for guest sessions, so it sends that transcript along as a JSON string
+    (`client_history`, a list of {"role": "user"|"assistant", "content": str}
+    objects) and we use it here as memory_context input in place of the
+    DB-backed history authenticated users get. Untrusted input, so every
+    field is validated before use rather than trusted as-is.
+    """
+    if not raw:
+        return []
+
+    try:
+        items = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+
+    if not isinstance(items, list):
+        return []
+
+    parsed = []
+
+    # Same window get_recent_messages() uses (limit=6 most-recent), doubled
+    # since guest turns are user+assistant pairs — keeps the router/planner
+    # prompt bounded regardless of how long the client-side transcript is.
+    for item in items[-12:]:
+        if not isinstance(item, dict):
+            continue
+
+        role = item.get("role")
+        content = item.get("content")
+
+        if role not in ("user", "assistant"):
+            continue
+
+        if not isinstance(content, str) or not content.strip():
+            continue
+
+        parsed.append(SimpleNamespace(role=role, content=content))
+
+    return parsed
 
 
 router = APIRouter(
@@ -169,6 +217,7 @@ async def query_in_chat(
     file: UploadFile | None = File(None),
     web_search: bool = Form(False),
     country: str = Form("dsire"),
+    client_history: str | None = Form(None),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -194,6 +243,12 @@ async def query_in_chat(
             db,
             chat_id,
         )
+    else:
+        # No DB-backed chat/messages for guests — fall back to the
+        # transcript the frontend keeps client-side, so follow-ups still
+        # resolve ("it", "those rounds", ...) instead of hitting router
+        # "clarify"/planner failures every single turn.
+        history = _parse_guest_history(client_history)
 
     #
     result = pipeline.answer(
@@ -330,6 +385,7 @@ async def query_in_chat_stream(
     file: UploadFile | None = File(None),
     web_search: bool = Form(False),
     country: str = Form("dsire"),
+    client_history: str | None = Form(None),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -358,6 +414,24 @@ async def query_in_chat_stream(
                 detail="Chat not found",
             )
     
+    # Needed by the router + planner inside prepare_for_stream() so
+    # follow-ups ("how many rounds were involved in it") get resolved
+    # against the actual conversation instead of routed/retrieved with
+    # zero context. Fetched BEFORE create_message() below (same ordering
+    # as the non-streaming /query endpoint) so it doesn't also include
+    # the current question.
+    history = []
+
+    if current_user:
+        history = await get_recent_messages(
+            db,
+            chat_id,
+        )
+    else:
+        # Guests have no DB-backed chat/messages row — use the transcript
+        # the frontend sent instead, same as the non-streaming endpoint.
+        history = _parse_guest_history(client_history)
+
     if current_user:
         await create_message(
             db,
@@ -366,7 +440,6 @@ async def query_in_chat_stream(
             question,
         )
 
-    
     is_new_chat = (
         current_user
         and chat is not None
@@ -387,6 +460,7 @@ async def query_in_chat_stream(
         prompt, sources, fallback = await run_in_threadpool(
             pipeline.prepare_for_stream,
             question,
+            history,
             chat_id if current_user else None,
             country,
         )

@@ -302,6 +302,15 @@ export default function Home() {
         }
       }
 
+      // Snapshot the transcript so far (before this turn's user/placeholder
+      // messages are appended below). Guests have no DB-backed chat, so
+      // this is what lets follow-up questions resolve references against
+      // prior turns instead of the router/planner seeing empty history on
+      // every single message.
+      const priorHistory = activeMessages
+        .filter((m: any) => !m.thinking && typeof m.content === "string" && m.content.trim() !== "")
+        .map((m: any) => ({ role: m.role, content: m.content }));
+
       setActiveMessages((prev) => [
         ...prev,
         {
@@ -354,7 +363,8 @@ export default function Home() {
               return next;
             });
           },
-        },);
+        },
+        priorHistory,);
 
         if (token) {
           const updatedChats = await listChats();
@@ -387,7 +397,7 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [question, loading, activeChatId, token, ]
+    [question, loading, activeChatId, token, activeMessages, ]
   );
 
   return (
