@@ -1,3 +1,12 @@
+import uuid
+
+from sqlalchemy import ForeignKey, Integer, JSON, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import mapped_column
+
+from app.core.database import Base
+
+
 class UploadedChunk(Base):
     __tablename__ = "uploaded_chunks"
 

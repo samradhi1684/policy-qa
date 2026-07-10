@@ -1,3 +1,12 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import mapped_column
+
+from app.core.database import Base
+
 class UploadedDocument(Base):
     __tablename__ = "uploaded_documents"
 
