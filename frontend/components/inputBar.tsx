@@ -106,7 +106,8 @@ export default function InputBar({
     }
   }
 
-  const canSend = value.trim().length > 0 && !loading;
+  // CHANGED: also allow send when a file is selected (even with empty text)
+  const canSend = (value.trim().length > 0 || selectedFile !== null) && !loading;
 
   return (
     <div
@@ -137,6 +138,8 @@ export default function InputBar({
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) onFileSelect(file);
+            // Reset so the same file can be re-selected after removal
+            e.target.value = "";
           }}
         />
 
@@ -166,6 +169,7 @@ export default function InputBar({
           <Paperclip size={18} />
         </button>
 
+        {/* CHANGED: added × button to remove the file before sending */}
         {selectedFile && (
           <div
             style={{
@@ -179,6 +183,7 @@ export default function InputBar({
               padding: "4px 10px",
               maxWidth: 140,
               overflow: "hidden",
+              flexShrink: 0,
             }}
           >
             <FileText size={12} style={{ flexShrink: 0 }} />
@@ -196,6 +201,27 @@ export default function InputBar({
                 {uploadProgress}%
               </span>
             )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onFileSelect(null);
+              }}
+              title="Remove file"
+              style={{
+                marginLeft: 2,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--primary)",
+                padding: 0,
+                lineHeight: 1,
+                flexShrink: 0,
+                fontSize: 15,
+                fontWeight: 500,
+              }}
+            >
+              ×
+            </button>
           </div>
         )}
 

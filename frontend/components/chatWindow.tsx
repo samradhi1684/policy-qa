@@ -18,6 +18,7 @@ export type Message = {
   // Once the first token streams in, the caller flips this to false and
   // content starts rendering incrementally.
   thinking?: boolean;
+  file?: string;
 };
 
 type Props = {
@@ -129,6 +130,7 @@ export default function ChatWindow({
                       i
                     )
                   }
+                  file={msg.file}   // ← ADDED
                 />
               )
           )}

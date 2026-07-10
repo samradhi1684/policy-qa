@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Database,
   Download as DownloadIcon,
+  FileText,
 } from "lucide-react";
 
 type Props = {
@@ -20,11 +21,11 @@ type Props = {
   content: string;
   created_at?: string;
   sources?: Source[];
-
   downloadUrl?: string;
   downloadType?: string;
   onSourceClick?: (sources: Source[], index: number) => void;
   onRegenerate?: () => void;
+  file?: string;   // CHANGED: filename of document attached to this message
 };
 
 function formatTime(created_at?: string) {
@@ -91,12 +92,11 @@ export default function MessageBubble({
   content,
   created_at,
   sources,
-
   downloadUrl,
   downloadType,
-
   onSourceClick,
   onRegenerate,
+  file,   // CHANGED: destructured here
 }: Props) {
   const { user } = useAuth();
   const [speaking, setSpeaking] = useState(false);
@@ -160,6 +160,34 @@ export default function MessageBubble({
               lineHeight: 1.6,
             }}
           >
+            {/* CHANGED: file chip appears inside the bubble, above the text */}
+            {file && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: content ? 8 : 0,
+                  background: "rgba(255,255,255,0.18)",
+                  borderRadius: 8,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  width: "fit-content",
+                }}
+              >
+                <FileText size={13} style={{ flexShrink: 0 }} />
+                <span
+                  style={{
+                    maxWidth: 200,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {file}
+                </span>
+              </div>
+            )}
             {content}
           </div>
 

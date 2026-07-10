@@ -52,8 +52,7 @@ from fastapi import File
 from app.adapters.llm_client import LLMClient
 
 
-from app.services import session_documents
-
+from app.services import uploaded_document_service
 
 from app.services.message_service import (
     create_message,
@@ -883,7 +882,7 @@ async def upload_chat_document(
         # Chunking + embedding is CPU/network bound and synchronous —
         # keep it off the event loop.
         meta = await run_in_threadpool(
-            session_documents.add_document, chat_id, filename, text
+            uploaded_document_service.add_document, chat_id, filename, text
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -901,4 +900,4 @@ async def list_chat_documents(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    return session_documents.list_documents(chat_id)
+    return uploaded_document_service.list_documents(chat_id)

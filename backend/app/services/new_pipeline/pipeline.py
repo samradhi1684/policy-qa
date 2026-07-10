@@ -1284,8 +1284,8 @@ class Pipeline:
         if not chat_id or chat_id == "guest":
             return None
         try:
-            from app.services import session_documents
-            chunks = session_documents.retrieve(chat_id, embed(question))
+            from app.services import uploaded_document_service
+            chunks = uploaded_document_service.retrieve(chat_id, embed(question))
             return chunks or None
         except Exception:
             logger.exception("Session-document retrieval failed; continuing without uploads")

@@ -237,56 +237,22 @@ export default function Home() {
    * Guests cannot reach this path (upload is disabled in the input bar).
    */
   async function handleFileSelect(file: File | null) {
-    setSelectedFile(file);
-    if (!file || !token) return;
-
-    // Ensure there is a persisted chat to attach the document to.
-    let chatId = activeChatId;
-    if (!chatId || chatId === "guest") {
-      const chat = await createChat();
-      setChats((prev) => [chat, ...prev]);
-      setActiveChatId(chat.id);
-      chatId = chat.id;
-    }
-
-    setUploadProgress(0);
-    try {
-      const doc = await uploadChatDocument(chatId, file, setUploadProgress);
-      setChatDocuments((prev) => [...prev, doc]);
-      setActiveMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `**${doc.name}** was added to this chat. You can now ask questions about it — for example, *"What are the incentives?"*`,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      setSelectedFile(null);
-    } catch {
-      setActiveMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, that document could not be uploaded.",
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      setSelectedFile(null);
-    } finally {
-      setUploadProgress(null);
-    }
-  }
+  setSelectedFile(file);
+}
 
   const handleSend = useCallback(
     async (overrideQuestion?: unknown) => {
       const currentQuestion =
         typeof overrideQuestion === "string" ? overrideQuestion : question;
 
-      if (currentQuestion.trim() === "" || loading) return;
+      if ((currentQuestion.trim() === "" && !selectedFile) || loading) return;
 
       setQuestion("");
       setLoading(true);
       setSourcePaneSources(null);
+
+      const fileToUpload = selectedFile;   // ← ADD
+      setSelectedFile(null);               // ← ADD: chip disappears immediately
 
       let chatId = activeChatId;
 
@@ -307,15 +273,33 @@ export default function Home() {
       // this is what lets follow-up questions resolve references against
       // prior turns instead of the router/planner seeing empty history on
       // every single message.
+
+      // AFTER: insert this whole block before priorHistory
+      if (fileToUpload && token && chatId && chatId !== "guest") {
+        setUploadProgress(0);
+        try {
+          const doc = await uploadChatDocument(chatId, fileToUpload, setUploadProgress);
+          setChatDocuments((prev) => [...prev, doc]);
+        } catch {
+          // non-fatal: question still sends, just without the doc in retrieval
+        } finally {
+          setUploadProgress(null);
+        }
+      }
+
+
+
       const priorHistory = activeMessages
         .filter((m: any) => !m.thinking && typeof m.content === "string" && m.content.trim() !== "")
         .map((m: any) => ({ role: m.role, content: m.content }));
 
+  
       setActiveMessages((prev) => [
         ...prev,
         {
           role: "user",
           content: currentQuestion,
+          file: fileToUpload?.name,        // ← ADD
           created_at: new Date().toISOString(),
         },
       ]);
@@ -397,7 +381,7 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [question, loading, activeChatId, token, activeMessages, ]
+    [question, loading, activeChatId, token, activeMessages, selectedFile]
   );
 
   return (
