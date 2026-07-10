@@ -529,6 +529,9 @@ class ChunkRetriever:
 # Cross-encoder reranker
 # ===========================================================================
 
+from app.services.confidence import LOW_CONFIDENCE_RERANK_THRESHOLD
+
+
 class Reranker:
     def rerank(
         self,
@@ -540,13 +543,10 @@ class Reranker:
             if not chunks:
                 return []
 
-
             pairs = [[query, c["chunk_text"]] for c in chunks]
 
             try:
-
                 with Timer("Remote CrossEncoder.predict()"):
-
                     ce_scores = reranker_client.predict(pairs)
 
             except Exception as e:
@@ -563,12 +563,36 @@ class Reranker:
                 ],
                 key=lambda x: x["rerank_score"],
                 reverse=True,
-            )[:top_k]
+            )
+
+            ranked = [
+                chunk
+                for chunk in ranked
+                if chunk["rerank_score"] >= LOW_CONFIDENCE_RERANK_THRESHOLD
+            ]
+
+            # fallback so retrieval never becomes empty
+            if not ranked:
+                ranked = sorted(
+                    [
+                        {
+                            **c,
+                            "rerank_score": float(score),
+                        }
+                        for c, score in zip(chunks, ce_scores)
+                    ],
+                    key=lambda x: x["rerank_score"],
+                    reverse=True,
+                )[:1]
+
+            ranked = ranked[:top_k]
 
             logger.info(
-                f"Reranker: {len(chunks)} → {len(ranked)}  "
+                f"Reranker: {len(chunks)} → {len(ranked)} "
+                f"(threshold={LOW_CONFIDENCE_RERANK_THRESHOLD}) "
                 f"scores: {[round(c['rerank_score'], 3) for c in ranked]}"
             )
+
         return ranked
 
 
