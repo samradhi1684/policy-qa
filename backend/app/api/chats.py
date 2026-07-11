@@ -133,10 +133,18 @@ llm = LLMClient()
 GENERATED_DIR = Path("generated")
 GENERATED_DIR.mkdir(exist_ok=True)
 
-# Load Whisper once
+# Load Whisper once.
+# download_root points at the shared hf-cache volume (mounted in docker-compose.yml)
+# so the model is downloaded once and reused across container restarts instead of
+# being re-fetched into the container's ephemeral filesystem every time.
+WHISPER_CACHE_DIR = os.environ.get(
+    "HF_HOME",
+    os.path.expanduser("~/.cache/huggingface"),
+)
 whisper_model = WhisperModel(
     "small.en",
-    compute_type="int8"
+    compute_type="int8",
+    download_root=os.path.join(WHISPER_CACHE_DIR, "hub"),
 )
 
 

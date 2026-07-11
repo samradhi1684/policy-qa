@@ -32,6 +32,8 @@ from app.models.user import User
 from app.models.chat import Chat
 from app.models.message import Message
 from app.models.source import Source
+from app.models.uploaded_document import UploadedDocument
+from app.models.uploaded_chunk import UploadedChunk
 
 target_metadata = Base.metadata
 

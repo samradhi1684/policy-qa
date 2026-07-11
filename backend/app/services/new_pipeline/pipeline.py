@@ -904,6 +904,7 @@ class Pipeline:
         self,
         question: str,
         chat_history=None,
+        chat_id: Optional[str] = None,
     ):
         """
         Classify the message and, for anything that actually needs the
@@ -924,7 +925,9 @@ class Pipeline:
             llm_client,
         )
 
-        route = self.router.route(question, memory_context)
+        has_uploaded_documents = self._has_uploaded_documents(chat_id)
+
+        route = self.router.route(question, memory_context, has_uploaded_documents)
         logger.info(f"[ROUTER] category={route.category} confidence={route.confidence}")
 
         if route.is_general():
@@ -1101,6 +1104,7 @@ class Pipeline:
             memory_context, route, resolved_query, short_circuit = self._plan(
                 question,
                 chat_history,
+                chat_id,
             )
 
             if short_circuit is not None:
@@ -1195,6 +1199,7 @@ class Pipeline:
         _memory_context, route, resolved_query, short_circuit = self._plan(
             question,
             chat_history,
+            chat_id,
         )
 
         if short_circuit is not None:
@@ -1273,6 +1278,19 @@ class Pipeline:
         return result["prompt"], sources, None
 
 
+
+    def _has_uploaded_documents(self, chat_id: Optional[str]) -> bool:
+        """Cheap metadata check for whether this chat has any uploads, used
+        to tell the router that phrases like "this document" have a real
+        referent even with no prior conversation history."""
+        if not chat_id or chat_id == "guest":
+            return False
+        try:
+            from app.services import uploaded_document_service
+            return bool(uploaded_document_service.list_documents(chat_id))
+        except Exception:
+            logger.exception("Uploaded-document lookup failed during routing")
+            return False
 
     def _session_chunks(
         self,

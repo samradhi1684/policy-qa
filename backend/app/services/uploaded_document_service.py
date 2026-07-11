@@ -98,9 +98,20 @@ def add_document(chat_id: str, name: str, text: str) -> Dict[str, Any]:
     )
 
     with _db() as db:
+        # No relationship() is declared between UploadedDocument and
+        # UploadedChunk (only raw FK columns), so the unit-of-work has no
+        # way to infer that chunks depend on the document and may flush
+        # them in either order. Flush the parent first so the FK the
+        # chunks reference is guaranteed to exist before they're inserted.
         db.add(doc)
+        db.flush()
         db.add_all(chunk_records)
         db.commit()
+        # Read attributes before the session (and thus this instance) is
+        # detached on __exit__ — commit() expires instance state, so any
+        # attribute access after the `with` block triggers a lazy refresh
+        # against a closed session (DetachedInstanceError).
+        created_at = doc.created_at
 
     logger.info(
         "Chat %s: stored document %s (%s) → %d chunks",
@@ -112,7 +123,7 @@ def add_document(chat_id: str, name: str, text: str) -> Dict[str, Any]:
         "name": name,
         "chat_id": chat_id,
         "num_chunks": len(chunk_records),
-        "created_at": doc.created_at.isoformat(),
+        "created_at": created_at.isoformat(),
     }
 
 

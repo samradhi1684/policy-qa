@@ -96,10 +96,12 @@ services:
     env_file: .env
     environment:
       - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - HF_HOME=/root/.cache/huggingface
     ports:
       - "8080:8080"
     volumes:
       - ./backend/app/answering/indices:/app/app/answering/indices
+      - hf-cache:/root/.cache/huggingface
     depends_on:
       - postgres
       - llm
