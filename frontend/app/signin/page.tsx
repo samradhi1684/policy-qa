@@ -74,7 +74,7 @@ export default function SignInPage() {
           Welcome Back
         </h1>
         <p style={{ fontSize: "14px", color: "var(--placeholder-text)", margin: "0 0 28px" }}>
-          Sign in to your PolicyLens account.
+          Sign in to your PolicySense account.
         </p>
 
         {error && (

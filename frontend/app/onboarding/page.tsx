@@ -76,7 +76,7 @@ export default function OnboardingPage() {
           What do we call you?
         </h1>
         <p style={{ fontSize: "14px", color: "var(--placeholder-text)", margin: "0 0 24px" }}>
-          Personalize your PolicyLens experience.
+          Personalize your PolicySense experience.
         </p>
 
         <FormField label="Your name" placeholder="Your name" value={name} onChange={setName} />

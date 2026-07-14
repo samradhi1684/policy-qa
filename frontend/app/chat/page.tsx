@@ -27,6 +27,11 @@ import {
   type Source,
 } from "../../lib/api";
 
+import {
+  PENDING_PROMPT_KEY,
+  PENDING_COUNTRY_KEY,
+} from "../page";
+
 const DEFAULT_COUNTRY = "dsire"; // matches the sidebar MODELS ids
 
 export default function Home() {
@@ -81,6 +86,35 @@ export default function Home() {
 
     listChats().then(setChats).catch(() => {});
   }, [token, ready, clearSessionState]);
+
+  /**
+   * Replit-style onboarding handoff: if the person typed a prompt on the
+   * landing page while signed out, it was stashed in sessionStorage before
+   * redirecting to /signin (or /signup -> /onboarding). Once they land back
+   * here authenticated, pick it up, send it through the exact same path as
+   * a normal message, and clear it so it never fires twice.
+   */
+  useEffect(() => {
+    if (!ready || !token) return;
+
+    let pending: string | null = null;
+    let pendingCountry: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PENDING_PROMPT_KEY);
+      pendingCountry = sessionStorage.getItem(PENDING_COUNTRY_KEY);
+      sessionStorage.removeItem(PENDING_PROMPT_KEY);
+      sessionStorage.removeItem(PENDING_COUNTRY_KEY);
+    } catch {
+      return;
+    }
+
+    if (!pending) return;
+
+    if (pendingCountry) setSelectedModel(pendingCountry);
+    setQuestion(pending);
+    setTimeout(() => handleSend(pending), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, token]);
 
   // Guard against bfcache restores exposing a logged-out session's data.
   useEffect(() => {

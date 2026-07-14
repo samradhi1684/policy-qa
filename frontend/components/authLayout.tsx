@@ -90,12 +90,12 @@ export default function AuthLayout({
         )}
         <div className="auth-image-overlay">
           <p>
-            PolicyLens is an informational tool only. Policy data is sourced
+            PolicySense is an informational tool only. Policy data is sourced
             from official government publications. Always verify with
             official sources before taking action.
           </p>
           <p className="auth-image-copyright">
-            © 2026 PolicyLens. All rights reserved.
+            © 2026 PolicySense. All rights reserved.
           </p>
         </div>
 
