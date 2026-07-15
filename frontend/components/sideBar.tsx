@@ -17,8 +17,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 
 const MODELS = [
-  { id: "dsire", label: "United States", flag: "🇺🇸" },
-  { id: "mnre", label: "India", flag: "🇮🇳" },
+  { id: "dsire", label: "United States", flag: "🇺🇸", live: true },
+  { id: "mnre", label: "India", flag: "🇮🇳", live: false },
 ];
 
 type Props = {
@@ -285,13 +285,17 @@ export default function Sidebar({
                   <button
                     key={m.id}
                     onClick={() => {
+                      if (!m.live) return;
                       onModelChange(m.id);
                       setModelOpen(false);
                     }}
+                    disabled={!m.live}
+                    title={m.live ? undefined : "India dataset coming soon"}
                     style={{
                       width: "100%",
                       display: "flex",
                       alignItems: "center",
+                      justifyContent: "space-between",
                       gap: 8,
                       padding: "10px 14px",
                       border: "none",
@@ -299,14 +303,33 @@ export default function Sidebar({
                         selectedModel === m.id
                           ? "var(--sidebar-active)"
                           : "#fff",
-                      cursor: "pointer",
+                      cursor: m.live ? "pointer" : "not-allowed",
                       fontSize: "14px",
                       fontWeight: 600,
-                      color: "var(--foreground)",
+                      color: m.live ? "var(--foreground)" : "var(--placeholder-text)",
+                      opacity: m.live ? 1 : 0.7,
                     }}
                   >
-                    <span>{m.flag}</span>
-                    <span>{m.label}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span>{m.flag}</span>
+                      <span>{m.label}</span>
+                    </span>
+                    {!m.live && (
+                      <span style={{
+                        fontSize: "9px",
+                        fontWeight: 700,
+                        color: "var(--accent-purple)",
+                        background: "var(--accent-purple-soft)",
+                        border: "1px solid var(--accent-purple-border)",
+                        borderRadius: "999px",
+                        padding: "2px 6px",
+                        letterSpacing: "0.02em",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}>
+                        Coming soon
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

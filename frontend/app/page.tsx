@@ -127,30 +127,27 @@ export default function LandingPage() {
           </div>
 
           {/* ── Country selector ───────────────────────────────────────── */}
-          <div className="country-row" role="radiogroup" aria-label="Select country dataset">
-            {COUNTRIES.map((c) => {
-              const active = country === c.id;
-              return (
-                <label
-                  key={c.id}
-                  className={`country-pill ${active ? "country-pill-active" : ""} ${!c.live ? "country-pill-disabled" : ""}`}
-                  title={c.live ? undefined : "India dataset coming soon"}
-                >
-                  <input
-                    type="radio"
-                    name="landing-country"
-                    value={c.id}
-                    checked={active}
-                    onChange={() => setCountry(c.id)}
-                  />
-                  <span className="country-flag">{c.flag}</span>
-                  <span className="country-name">{c.label}</span>
-                  {!c.live && (
-                    <span className="coming-soon-badge">Coming soon</span>
-                  )}
-                </label>
-              );
-            })}
+          <div className="country-selector-wrap">
+            <div className="country-capsule" role="group" aria-label="Select country dataset">
+              {COUNTRIES.map((c, i) => {
+                const active = country === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    className={`capsule-segment ${active ? "capsule-segment-active" : ""}`}
+                    onClick={() => setCountry(c.id)}
+                    aria-pressed={active}
+                    title={c.live ? undefined : "India dataset coming soon"}
+                  >
+                    <span className="country-flag">{c.flag}</span>
+                    <span className="country-abbr">{c.id === "dsire" ? "USA" : "India"}</span>
+                    {i < COUNTRIES.length - 1 && <span className="capsule-divider" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Coming soon label below India */}
+            <span className="coming-soon-label">🇮🇳 India coming soon</span>
           </div>
 
           {/* ── Input zone ─────────────────────────────────────────────── */}
@@ -297,52 +294,64 @@ export default function LandingPage() {
         .hero-buttons {
           display: flex; align-items: center; justify-content: center;
           gap: 14px; flex-wrap: wrap;
-          margin-bottom: 36px;
+          margin-bottom: 48px;
         }
 
         /* ── Country selector ─────────────────────────────── */
-        .country-row {
-          display: flex; align-items: center; justify-content: center;
-          gap: 10px;
-          margin-bottom: 14px;
+        .country-selector-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 28px;
         }
-        .country-pill {
-          display: inline-flex; align-items: center; gap: 7px;
-          padding: 10px 22px;
+        .country-capsule {
+          display: inline-flex;
+          align-items: stretch;
           border-radius: 999px;
-          border: 2px solid var(--sidebar-border);
+          border: 1.5px solid var(--sidebar-border);
           background: #fff;
+          overflow: hidden;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .capsule-segment {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 11px 28px;
+          border: none;
+          background: transparent;
           font-size: 15px; font-weight: 600;
           color: var(--placeholder-text);
           cursor: pointer;
-          transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s;
-          user-select: none;
+          transition: background 0.18s, color 0.18s;
+          font-family: inherit;
+          position: relative;
         }
-        .country-pill input {
-          accent-color: var(--primary);
-          width: 16px; height: 16px;
-          cursor: pointer; flex-shrink: 0;
-        }
-        .country-flag { font-size: 18px; line-height: 1; }
-        .country-name { font-size: 15px; font-weight: 600; }
-
-        .country-pill-active {
-          border-color: var(--primary);
+        .capsule-segment:hover:not(.capsule-segment-active) {
           background: var(--primary-soft);
           color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(77,124,88,0.13);
         }
-        /* Disabled pill (India) — still clickable to show notice, just muted */
-        .country-pill-disabled {
-          opacity: 0.7;
+        .capsule-segment-active {
+          background: var(--primary);
+          color: #fff;
         }
-        .coming-soon-badge {
-          font-size: 10px; font-weight: 700;
+        .capsule-divider {
+          position: absolute;
+          right: 0; top: 20%; bottom: 20%;
+          width: 1.5px;
+          background: var(--sidebar-border);
+          pointer-events: none;
+        }
+        .country-flag { font-size: 18px; line-height: 1; }
+        .country-abbr { font-size: 15px; font-weight: 600; }
+        .coming-soon-label {
+          font-size: 11px; font-weight: 600;
           color: var(--accent-purple);
           background: var(--accent-purple-soft);
           border: 1px solid var(--accent-purple-border);
           border-radius: 999px;
-          padding: 2px 8px;
+          padding: 3px 10px;
           letter-spacing: 0.02em;
           white-space: nowrap;
         }
