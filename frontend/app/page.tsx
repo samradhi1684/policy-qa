@@ -7,33 +7,29 @@ import InputBar from "../components/inputBar";
 import { useAuth } from "../context/AuthContext";
 import { createChat, queryInChatStream } from "../lib/api";
 
-// ─── Session-storage keys ────────────────────────────────────────────────────
-// Used to hand a pending prompt across page navigations (sign-in / sign-up).
-// /app/chat/page.tsx reads + clears these on mount after authentication.
 export const PENDING_PROMPT_KEY  = "policysense_pending_prompt";
 export const PENDING_COUNTRY_KEY = "policysense_pending_country";
 
+// India is "coming soon" — dsire is the only live dataset
 const COUNTRIES = [
-  { id: "dsire", label: "USA 🇺🇸" },
-  { id: "mnre",  label: "India 🇮🇳" },
+  { id: "dsire", label: "USA",   flag: "🇺🇸", live: true },
+  { id: "mnre",  label: "India", flag: "🇮🇳", live: false },
 ];
 
 const API_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/+$/, "");
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 type ModalMode = "signup" | "signin" | null;
 
-// ─── Main page ────────────────────────────────────────────────────────────────
 export default function LandingPage() {
-  const router  = useRouter();
+  const router = useRouter();
   const { token, login, ready } = useAuth();
 
-  const [scrolled,     setScrolled]     = useState(false);
-  const [heroVisible,  setHeroVisible]  = useState(false);
-  const [question,     setQuestion]     = useState("");
-  const [country,      setCountry]      = useState(COUNTRIES[0].id);
-  const [sending,      setSending]      = useState(false);
-  const [modal,        setModal]        = useState<ModalMode>(null);
+  const [scrolled,    setScrolled]    = useState(false);
+  const [heroVisible, setHeroVisible] = useState(false);
+  const [question,    setQuestion]    = useState("");
+  const [country,     setCountry]     = useState(COUNTRIES[0].id);
+  const [sending,     setSending]     = useState(false);
+  const [modal,       setModal]       = useState<ModalMode>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setHeroVisible(true), 40);
@@ -42,7 +38,6 @@ export default function LandingPage() {
     return () => { clearTimeout(t); window.removeEventListener("scroll", onScroll); };
   }, []);
 
-  // Close modal on Escape
   useEffect(() => {
     if (!modal) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setModal(null); };
@@ -50,7 +45,6 @@ export default function LandingPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [modal]);
 
-  // Lock body scroll when modal open
   useEffect(() => {
     document.body.style.overflow = modal ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -60,8 +54,10 @@ export default function LandingPage() {
     const trimmed = question.trim();
     if (!trimmed || sending || !ready) return;
 
+    // India is not live — block send and show a notice
+    if (country === "mnre") return;
+
     if (!token) {
-      // Stash so modal → chat can auto-send after login
       try {
         sessionStorage.setItem(PENDING_PROMPT_KEY,  trimmed);
         sessionStorage.setItem(PENDING_COUNTRY_KEY, country);
@@ -80,16 +76,17 @@ export default function LandingPage() {
     }
   }
 
-  // After successful auth inside the modal, go to chat (pending prompt consumed there)
   function onAuthSuccess() {
     setModal(null);
     router.push("/chat");
   }
 
-  return (
-    <div style={{ background: "var(--background)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+  const indiaSelected = country === "mnre";
 
-      {/* ── Nav ─────────────────────────────────────────────────────────── */}
+  return (
+    <div className="page-shell">
+
+      {/* ── Nav ──────────────────────────────────────────────────────── */}
       <header className={`nav ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-inner">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -98,53 +95,71 @@ export default function LandingPage() {
               PolicySense
             </span>
           </div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 28 }}>
-            <button onClick={() => router.push("/chat")}         className="nav-link nav-link-btn">Continue as guest</button>
-            <button onClick={() => setModal("signin")}           className="nav-link nav-link-btn">Sign in</button>
-            <button onClick={() => setModal("signup")}           className="btn-primary btn-sm">Create account</button>
+          <nav style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            <button onClick={() => router.push("/chat")}    className="nav-link nav-link-btn">Continue as guest</button>
+            <button onClick={() => setModal("signin")}      className="nav-link nav-link-btn">Sign in</button>
+            <button onClick={() => setModal("signup")}      className="btn-primary btn-sm">Create account</button>
           </nav>
         </div>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="hero">
-        <div className={`hero-copy hero-centered ${heroVisible ? "in" : ""}`}>
+      {/* ── Hero (fills remaining height, content centred) ────────────── */}
+      <main className="hero">
+        <div className={`hero-copy ${heroVisible ? "in" : ""}`}>
 
+          {/* Title */}
           <h1 className="hero-title">
-            Ask policy questions.
-            <br />
+            Ask policy questions.<br />
             <span className="hero-title-serif">Get answers you can verify.</span>
           </h1>
 
+          {/* Subtitle */}
           <p className="hero-sub">
             PolicySense reads renewable energy policy documents from the US and India,
             retrieves the most relevant evidence, and generates answers grounded in
             official government sources.
           </p>
 
+          {/* CTA buttons */}
           <div className="hero-buttons">
-            <button onClick={() => setModal("signup")}      className="btn-primary btn-lg">Create account</button>
-            <button onClick={() => router.push("/chat")}    className="btn-ghost btn-lg">Continue as guest</button>
+            <button onClick={() => setModal("signup")}   className="btn-primary btn-lg">Create account</button>
+            <button onClick={() => router.push("/chat")} className="btn-ghost   btn-lg">Continue as guest</button>
           </div>
 
-          {/* ── Country radio toggles ───────────────────────────────────── */}
-          <div className="country-radios" role="radiogroup" aria-label="Country">
-            {COUNTRIES.map((c) => (
-              <label key={c.id} className={`country-radio ${country === c.id ? "country-radio-active" : ""}`}>
-                <input
-                  type="radio"
-                  name="landing-country"
-                  value={c.id}
-                  checked={country === c.id}
-                  onChange={() => setCountry(c.id)}
-                />
-                {c.label}
-              </label>
-            ))}
+          {/* ── Country selector ───────────────────────────────────────── */}
+          <div className="country-row" role="radiogroup" aria-label="Select country dataset">
+            {COUNTRIES.map((c) => {
+              const active = country === c.id;
+              return (
+                <label
+                  key={c.id}
+                  className={`country-pill ${active ? "country-pill-active" : ""} ${!c.live ? "country-pill-disabled" : ""}`}
+                  title={c.live ? undefined : "India dataset coming soon"}
+                >
+                  <input
+                    type="radio"
+                    name="landing-country"
+                    value={c.id}
+                    checked={active}
+                    onChange={() => setCountry(c.id)}
+                  />
+                  <span className="country-flag">{c.flag}</span>
+                  <span className="country-name">{c.label}</span>
+                  {!c.live && (
+                    <span className="coming-soon-badge">Coming soon</span>
+                  )}
+                </label>
+              );
+            })}
           </div>
 
-          {/* ── Input zone (green card around input bar) ────────────────── */}
-          <div className="input-zone">
+          {/* ── Input zone ─────────────────────────────────────────────── */}
+          <div className={`input-zone ${indiaSelected ? "input-zone-disabled" : ""}`}>
+            {indiaSelected && (
+              <div className="india-notice">
+                🇮🇳 India dataset is under construction — coming soon!
+              </div>
+            )}
             <InputBar
               value={question}
               onChange={setQuestion}
@@ -155,22 +170,22 @@ export default function LandingPage() {
               uploadDisabled
               uploadDisabledReason="Sign in to upload documents"
             />
-            <p className="input-zone-hint">
-              Press Enter or ↑ to search · Sign in to save your chats
+            <p className="input-hint">
+              Press Enter or ↑ to search · Sign in to save chats
             </p>
           </div>
 
-          {/* ── Inline copyright (always visible, no scroll needed) ─────── */}
-          <div className="inline-copyright">
-            <span>PolicySense is an informational tool only. Always verify with official sources.</span>
-            <span className="copyright-sep">·</span>
-            <span>© 2026 PolicySense. All rights reserved.</span>
-          </div>
-
         </div>
-      </section>
+      </main>
 
-      {/* ── Auth Modal ──────────────────────────────────────────────────── */}
+      {/* ── Footer — pinned to bottom of the page ─────────────────────── */}
+      <footer className="footer">
+        <span>PolicySense is an informational tool only. Always verify with official sources before taking action.</span>
+        <span className="footer-sep">·</span>
+        <span>© 2026 PolicySense. All rights reserved.</span>
+      </footer>
+
+      {/* ── Auth Modal ────────────────────────────────────────────────── */}
       {modal && (
         <AuthModal
           mode={modal}
@@ -183,17 +198,34 @@ export default function LandingPage() {
 
       <style jsx global>{`
         html { scroll-behavior: smooth; }
+        @keyframes fadeInBackdrop {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes slideUpModal {
+          from { opacity: 0; transform: translateY(18px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
       `}</style>
 
       <style jsx>{`
-        /* ── Nav ─────────────────────────────────────────────────────── */
+        /* ── Shell: three-row column filling the viewport ──────── */
+        .page-shell {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background: var(--background);
+        }
+
+        /* ── Nav ──────────────────────────────────────────── */
         .nav {
+          flex-shrink: 0;
           position: sticky; top: 0; z-index: 40;
-          background: rgba(255,255,255,0.72);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          background: rgba(255,255,255,0.80);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
           border-bottom: 1px solid transparent;
-          transition: border-color 0.25s ease, box-shadow 0.25s ease;
+          transition: border-color 0.25s, box-shadow 0.25s;
         }
         .nav-scrolled {
           border-bottom-color: var(--sidebar-border);
@@ -206,129 +238,172 @@ export default function LandingPage() {
         }
         .nav-link {
           font-size: 14px; font-weight: 600; color: var(--foreground);
-          text-decoration: none; opacity: 0.75;
-          transition: opacity 0.15s ease;
+          text-decoration: none; opacity: 0.72;
+          transition: opacity 0.15s;
         }
-        .nav-link-btn {
-          border: none; background: none; cursor: pointer; font-family: inherit;
-        }
+        .nav-link-btn { border: none; background: none; cursor: pointer; font-family: inherit; }
         .nav-link:hover { opacity: 1; }
 
-        /* ── Buttons ─────────────────────────────────────────────────── */
+        /* ── Buttons ──────────────────────────────────────── */
         .btn-primary {
           border: none; background: var(--primary); color: #fff;
           font-weight: 700; cursor: pointer; border-radius: 999px;
-          transition: background 0.15s ease, transform 0.15s ease;
-          font-family: inherit;
+          transition: background 0.15s, transform 0.15s; font-family: inherit;
         }
         .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .btn-ghost {
-          border: 1px solid var(--sidebar-border); background: #fff;
+          border: 1.5px solid var(--sidebar-border); background: #fff;
           color: var(--foreground); font-weight: 700; cursor: pointer;
           border-radius: 999px;
-          transition: border-color 0.15s ease, background 0.15s ease;
-          font-family: inherit;
+          transition: border-color 0.15s, background 0.15s; font-family: inherit;
         }
         .btn-ghost:hover { border-color: var(--primary); background: var(--primary-soft); }
-        .btn-sm  { padding: 9px 18px; font-size: 13px; }
-        .btn-lg  { padding: 14px 26px; font-size: 15px; }
+        .btn-sm { padding: 9px 20px; font-size: 13px; }
+        .btn-lg { padding: 14px 28px; font-size: 15px; }
 
-        /* ── Hero ────────────────────────────────────────────────────── */
+        /* ── Hero: grows to fill space between nav and footer ─ */
         .hero {
           flex: 1;
-          max-width: 900px; margin: 0 auto; width: 100%;
-          padding: 72px 32px 48px;
-          display: flex; justify-content: center; align-items: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 56px 32px 40px;
         }
-        .hero-centered { width: 100%; text-align: center; }
         .hero-copy {
+          width: 100%; max-width: 780px;
+          text-align: center;
+          display: flex; flex-direction: column; align-items: center;
+          gap: 0;                 /* gaps controlled per-child with margin */
           opacity: 0; transform: translateY(14px);
           transition: opacity 0.6s ease, transform 0.6s ease;
         }
         .hero-copy.in { opacity: 1; transform: translateY(0); }
+
         .hero-title {
-          font-size: 48px; line-height: 1.12;
+          font-size: 46px; line-height: 1.12;
           font-weight: 700; letter-spacing: -0.01em;
-          color: var(--foreground); margin: 0 0 20px;
+          color: var(--foreground); margin: 0 0 18px;
         }
         .hero-title-serif {
           font-family: "Iowan Old Style","Palatino Linotype",Georgia,ui-serif,serif;
           font-style: italic; font-weight: 500; color: var(--primary);
         }
         .hero-sub {
-          font-size: 17px; line-height: 1.65;
+          font-size: 16.5px; line-height: 1.65;
           color: var(--placeholder-text);
-          max-width: 680px; margin: 0 auto 32px;
+          max-width: 640px;
+          margin: 0 0 28px;
         }
         .hero-buttons {
-          display: flex; justify-content: center; align-items: center;
-          gap: 16px; margin-top: 0; margin-bottom: 0; flex-wrap: wrap;
+          display: flex; align-items: center; justify-content: center;
+          gap: 14px; flex-wrap: wrap;
+          margin-bottom: 36px;
         }
 
-        /* ── Country radios (bigger, pill-toggle style) ───────────────  */
-        .country-radios {
-          display: flex; justify-content: center; align-items: center;
-          gap: 12px; margin-top: 40px; margin-bottom: 12px;
+        /* ── Country selector ─────────────────────────────── */
+        .country-row {
+          display: flex; align-items: center; justify-content: center;
+          gap: 10px;
+          margin-bottom: 14px;
         }
-        .country-radio {
-          display: inline-flex; align-items: center; gap: 8px;
-          font-size: 15px; font-weight: 600;
-          color: var(--placeholder-text);
-          cursor: pointer;
+        .country-pill {
+          display: inline-flex; align-items: center; gap: 7px;
           padding: 10px 22px;
           border-radius: 999px;
           border: 2px solid var(--sidebar-border);
           background: #fff;
+          font-size: 15px; font-weight: 600;
+          color: var(--placeholder-text);
+          cursor: pointer;
           transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s;
           user-select: none;
         }
-        .country-radio input {
+        .country-pill input {
           accent-color: var(--primary);
-          cursor: pointer;
-          width: 17px; height: 17px;
+          width: 16px; height: 16px;
+          cursor: pointer; flex-shrink: 0;
         }
-        .country-radio-active {
+        .country-flag { font-size: 18px; line-height: 1; }
+        .country-name { font-size: 15px; font-weight: 600; }
+
+        .country-pill-active {
           border-color: var(--primary);
           background: var(--primary-soft);
           color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(77,124,88,0.12);
+          box-shadow: 0 0 0 3px rgba(77,124,88,0.13);
+        }
+        /* Disabled pill (India) — still clickable to show notice, just muted */
+        .country-pill-disabled {
+          opacity: 0.7;
+        }
+        .coming-soon-badge {
+          font-size: 10px; font-weight: 700;
+          color: var(--accent-purple);
+          background: var(--accent-purple-soft);
+          border: 1px solid var(--accent-purple-border);
+          border-radius: 999px;
+          padding: 2px 8px;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
         }
 
-        /* ── Input zone ──────────────────────────────────────────────── */
+        /* ── Input zone ───────────────────────────────────── */
         .input-zone {
-          margin-top: 8px;
+          width: 100%;
           background: linear-gradient(135deg, #edf5eb 0%, #f3f0fa 100%);
-          border: 1.5px solid #c8e0c4;
-          border-radius: 24px;
-          padding: 20px 20px 14px;
-          box-shadow: 0 4px 20px rgba(77,124,88,0.08), 0 1px 4px rgba(123,94,168,0.06);
+          border: 1.5px solid #c8dfc4;
+          border-radius: 22px;
+          padding: 18px 18px 12px;
+          box-shadow:
+            0 4px 20px rgba(77,124,88,0.08),
+            0 1px 4px rgba(123,94,168,0.06);
+          transition: opacity 0.2s;
         }
-        .input-zone-hint {
-          margin: 10px 0 0;
-          font-size: 12px;
-          color: var(--placeholder-text);
-          opacity: 0.75;
+        .input-zone-disabled {
+          opacity: 0.55;
+          pointer-events: none;
         }
-
-        /* ── Inline copyright ────────────────────────────────────────── */
-        .inline-copyright {
-          margin-top: 24px;
+        .india-notice {
+          font-size: 13px; font-weight: 600;
+          color: var(--accent-purple);
+          background: var(--accent-purple-soft);
+          border: 1px solid var(--accent-purple-border);
+          border-radius: 12px;
+          padding: 10px 14px;
+          margin-bottom: 12px;
+          text-align: left;
+        }
+        .input-hint {
+          margin: 9px 0 0;
           font-size: 11.5px;
           color: var(--placeholder-text);
-          opacity: 0.7;
+          opacity: 0.72;
+        }
+
+        /* ── Footer — always at very bottom ───────────────── */
+        .footer {
+          flex-shrink: 0;
+          padding: 16px 32px;
+          border-top: 1px solid var(--sidebar-border);
           display: flex;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
           gap: 8px;
           flex-wrap: wrap;
+          font-size: 11.5px;
+          color: var(--placeholder-text);
+          opacity: 0.72;
         }
-        .copyright-sep { opacity: 0.5; }
+        .footer-sep { opacity: 0.45; }
 
+        /* ── Responsive ───────────────────────────────────── */
         @media (max-width: 860px) {
-          .hero { padding-top: 40px; }
+          .hero { padding: 40px 20px 28px; }
           .hero-title { font-size: 34px; }
-          .nav-link { display: none; }
-          .country-radio { padding: 8px 16px; font-size: 14px; }
+          .nav-link  { display: none; }
+          .country-pill { padding: 9px 16px; }
+          .country-flag { font-size: 16px; }
+          .country-name { font-size: 14px; }
         }
         @media (prefers-reduced-motion: reduce) {
           .hero-copy { transition: none !important; opacity: 1 !important; transform: none !important; }
@@ -338,7 +413,9 @@ export default function LandingPage() {
   );
 }
 
-// ─── Auth Modal ───────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════
+   Auth Modal
+═══════════════════════════════════════════════════════════════ */
 type AuthModalProps = {
   mode: ModalMode;
   onSwitchMode: (m: ModalMode) => void;
@@ -349,146 +426,100 @@ type AuthModalProps = {
 
 function AuthModal({ mode, onSwitchMode, onClose, onSuccess, login }: AuthModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
-
-  function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === backdropRef.current) onClose();
-  }
-
   return (
     <div
       ref={backdropRef}
-      onClick={handleBackdropClick}
+      onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 200,
-        background: "rgba(34,48,31,0.35)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
+        background: "rgba(34,48,31,0.32)",
+        backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 24,
-        animation: "fadeInBackdrop 0.2s ease",
+        padding: 20,
+        animation: "fadeInBackdrop 0.18s ease",
       }}
     >
       <div
-        role="dialog"
-        aria-modal="true"
+        role="dialog" aria-modal="true"
         style={{
-          background: "#fff",
-          borderRadius: 28,
-          padding: "36px 40px",
-          width: "100%",
-          maxWidth: 420,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)",
+          background: "#fff", borderRadius: 28,
+          padding: "32px 36px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.17), 0 0 0 1px rgba(0,0,0,0.04)",
           position: "relative",
-          animation: "slideUpModal 0.22s ease",
+          animation: "slideUpModal 0.20s ease",
         }}
       >
-        {/* Close × */}
+        {/* Close button */}
         <button
-          onClick={onClose}
-          aria-label="Close"
+          onClick={onClose} aria-label="Close"
           style={{
-            position: "absolute", top: 18, right: 18,
-            background: "var(--surface-soft)", border: "none",
-            borderRadius: "50%", width: 32, height: 32,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", fontSize: 18, color: "var(--placeholder-text)",
+            position: "absolute", top: 16, right: 16,
+            background: "#f3f3f3", border: "none", borderRadius: "50%",
+            width: 30, height: 30, display: "flex", alignItems: "center",
+            justifyContent: "center", cursor: "pointer",
+            fontSize: 17, color: "var(--placeholder-text)",
             transition: "background 0.15s",
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "#e5e5e5")}
-          onMouseLeave={e => (e.currentTarget.style.background = "var(--surface-soft)")}
+          onMouseEnter={e => (e.currentTarget.style.background = "#e2e2e2")}
+          onMouseLeave={e => (e.currentTarget.style.background = "#f3f3f3")}
         >×</button>
 
-        {/* Purple accent bar at top */}
+        {/* Accent bar */}
         <div style={{
-          height: 4, borderRadius: 999,
+          height: 4, borderRadius: 999, marginBottom: 26,
           background: "linear-gradient(90deg, var(--primary) 0%, var(--accent-purple) 100%)",
-          marginBottom: 28,
         }} />
 
         {mode === "signup"
-          ? <SignUpForm onSwitchToSignIn={() => onSwitchMode("signin")} onSuccess={onSuccess} login={login} />
-          : <SignInForm onSwitchToSignUp={() => onSwitchMode("signup")} onSuccess={onSuccess} login={login} />
+          ? <SignUpForm  onSwitch={() => onSwitchMode("signin")} onSuccess={onSuccess} login={login} />
+          : <SignInForm  onSwitch={() => onSwitchMode("signup")} onSuccess={onSuccess} login={login} />
         }
       </div>
-
-      <style jsx global>{`
-        @keyframes fadeInBackdrop {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes slideUpModal {
-          from { opacity: 0; transform: translateY(20px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
     </div>
   );
 }
 
-// ─── Sign Up Form (inside modal) ─────────────────────────────────────────────
-function SignUpForm({
-  onSwitchToSignIn,
-  onSuccess,
-  login,
-}: {
-  onSwitchToSignIn: () => void;
-  onSuccess: () => void;
-  login: (token: string) => Promise<any>;
+/* ─── Sign Up Form ─────────────────────────────────────────── */
+function SignUpForm({ onSwitch, onSuccess, login }: {
+  onSwitch: () => void; onSuccess: () => void; login: (t: string) => Promise<any>;
 }) {
-  const [name,       setName]       = useState("");
-  const [email,      setEmail]      = useState("");
-  const [password,   setPassword]   = useState("");
-  const [error,      setError]      = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [name, setName]         = useState("");
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState<string | null>(null);
+  const [busy, setBusy]         = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError("Please fill in all fields."); return;
-    }
-    setError(null); setSubmitting(true);
+    if (!name.trim() || !email.trim() || !password.trim()) { setError("Please fill in all fields."); return; }
+    setError(null); setBusy(true);
     try {
       const res = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), username: name.trim(), password }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        setError(err?.detail || "Could not create your account."); return;
-      }
+      if (!res.ok) { const e = await res.json().catch(() => null); setError(e?.detail || "Could not create account."); return; }
       const data = await res.json();
       await login(data.access_token);
-      // Store name for any deferred use but skip onboarding entirely
       window.localStorage.setItem("policysense_user_name", name.trim());
       onSuccess();
-    } catch {
-      setError("Could not reach the server.");
-    } finally {
-      setSubmitting(false);
-    }
+    } catch { setError("Could not reach the server."); }
+    finally { setBusy(false); }
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ width: "100%" }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 6px", color: "var(--foreground)" }}>
-        Create account
-      </h2>
-      <p style={{ fontSize: 14, color: "var(--placeholder-text)", margin: "0 0 24px" }}>
-        Join PolicySense — free forever.
-      </p>
-
+      <h2 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "var(--foreground)" }}>Create account</h2>
+      <p style={{ fontSize: 13.5, color: "var(--placeholder-text)", margin: "0 0 22px" }}>Join PolicySense — free forever.</p>
       {error && <p style={{ fontSize: 13, color: "#e5484d", margin: "0 0 12px" }}>{error}</p>}
-
-      <ModalField label="Name"     type="text"     placeholder="Your name"    value={name}     onChange={setName} />
-      <ModalField label="Email"    type="email"    placeholder="you@email.com" value={email}    onChange={setEmail} />
-      <ModalField label="Password" type="password" placeholder="Min 8 chars"  value={password} onChange={setPassword} />
-
-      <ModalSubmitBtn loading={submitting} label="Create account" loadingLabel="Creating…" />
-
-      <p style={{ textAlign: "center", fontSize: 13, color: "var(--placeholder-text)", marginTop: 18 }}>
+      <MF label="Name"     type="text"     placeholder="Your name"    value={name}     onChange={setName} />
+      <MF label="Email"    type="email"    placeholder="you@email.com" value={email}    onChange={setEmail} />
+      <MF label="Password" type="password" placeholder="Min 8 chars"  value={password} onChange={setPassword} />
+      <MSB busy={busy} label="Create account" />
+      <p style={{ textAlign: "center", fontSize: 13, color: "var(--placeholder-text)", marginTop: 16 }}>
         Already have an account?{" "}
-        <button type="button" onClick={onSwitchToSignIn}
+        <button type="button" onClick={onSwitch}
           style={{ border: "none", background: "none", padding: 0, color: "var(--accent-purple)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           Sign in
         </button>
@@ -497,68 +528,44 @@ function SignUpForm({
   );
 }
 
-// ─── Sign In Form (inside modal) ─────────────────────────────────────────────
-function SignInForm({
-  onSwitchToSignUp,
-  onSuccess,
-  login,
-}: {
-  onSwitchToSignUp: () => void;
-  onSuccess: () => void;
-  login: (token: string) => Promise<any>;
+/* ─── Sign In Form ─────────────────────────────────────────── */
+function SignInForm({ onSwitch, onSuccess, login }: {
+  onSwitch: () => void; onSuccess: () => void; login: (t: string) => Promise<any>;
 }) {
-  const [email,      setEmail]      = useState("");
-  const [password,   setPassword]   = useState("");
-  const [error,      setError]      = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState<string | null>(null);
+  const [busy, setBusy]         = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email and password."); return;
-    }
-    setError(null); setSubmitting(true);
+    if (!email.trim() || !password.trim()) { setError("Please enter email and password."); return; }
+    setError(null); setBusy(true);
     try {
       const body = new URLSearchParams();
-      body.append("username", email.trim());
-      body.append("password", password);
+      body.append("username", email.trim()); body.append("password", password);
       const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body,
       });
-      if (!res.ok) {
-        setError(res.status === 401 ? "Incorrect email or password." : "Something went wrong."); return;
-      }
+      if (!res.ok) { setError(res.status === 401 ? "Incorrect email or password." : "Something went wrong."); return; }
       const data = await res.json();
       await login(data.access_token);
       onSuccess();
-    } catch {
-      setError("Could not reach the server.");
-    } finally {
-      setSubmitting(false);
-    }
+    } catch { setError("Could not reach the server."); }
+    finally { setBusy(false); }
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ width: "100%" }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 6px", color: "var(--foreground)" }}>
-        Welcome back
-      </h2>
-      <p style={{ fontSize: 14, color: "var(--placeholder-text)", margin: "0 0 24px" }}>
-        Sign in to your PolicySense account.
-      </p>
-
+      <h2 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "var(--foreground)" }}>Welcome back</h2>
+      <p style={{ fontSize: 13.5, color: "var(--placeholder-text)", margin: "0 0 22px" }}>Sign in to your PolicySense account.</p>
       {error && <p style={{ fontSize: 13, color: "#e5484d", margin: "0 0 12px" }}>{error}</p>}
-
-      <ModalField label="Email"    type="email"    placeholder="you@email.com" value={email}    onChange={setEmail} />
-      <ModalField label="Password" type="password" placeholder="Your password" value={password} onChange={setPassword} />
-
-      <ModalSubmitBtn loading={submitting} label="Sign in" loadingLabel="Signing in…" />
-
-      <p style={{ textAlign: "center", fontSize: 13, color: "var(--placeholder-text)", marginTop: 18 }}>
+      <MF label="Email"    type="email"    placeholder="you@email.com" value={email}    onChange={setEmail} />
+      <MF label="Password" type="password" placeholder="Your password" value={password} onChange={setPassword} />
+      <MSB busy={busy} label="Sign in" />
+      <p style={{ textAlign: "center", fontSize: 13, color: "var(--placeholder-text)", marginTop: 16 }}>
         Don&apos;t have an account?{" "}
-        <button type="button" onClick={onSwitchToSignUp}
+        <button type="button" onClick={onSwitch}
           style={{ border: "none", background: "none", padding: 0, color: "var(--accent-purple)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           Sign up
         </button>
@@ -567,55 +574,42 @@ function SignInForm({
   );
 }
 
-// ─── Small shared form components ────────────────────────────────────────────
-function ModalField({
-  label, type = "text", placeholder, value, onChange,
-}: {
-  label: string; type?: string; placeholder: string;
-  value: string; onChange: (v: string) => void;
+/* ─── Micro components ─────────────────────────────────────── */
+function MF({ label, type="text", placeholder, value, onChange }: {
+  label: string; type?: string; placeholder: string; value: string; onChange: (v: string) => void;
 }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 5 }}>
-        {label}
-      </label>
-      <input
-        type={type} value={value} placeholder={placeholder}
-        onChange={e => onChange(e.target.value)}
-        required
+    <div style={{ marginBottom: 13 }}>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 5 }}>{label}</label>
+      <input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} required
         style={{
-          width: "100%", padding: "11px 14px",
-          borderRadius: 12, border: "1.5px solid var(--input-border)",
-          outline: "none", fontSize: 14,
-          color: "var(--foreground)", background: "var(--input-bg)",
-          fontFamily: "inherit", transition: "border-color 0.15s",
+          width: "100%", padding: "11px 14px", borderRadius: 11,
+          border: "1.5px solid var(--input-border)", outline: "none",
+          fontSize: 14, color: "var(--foreground)", background: "var(--input-bg)", fontFamily: "inherit",
+          transition: "border-color 0.15s",
         }}
-        onFocus={e  => (e.currentTarget.style.borderColor = "var(--accent-purple)")}
-        onBlur={e   => (e.currentTarget.style.borderColor = "var(--input-border)")}
+        onFocus={e => (e.currentTarget.style.borderColor = "var(--accent-purple)")}
+        onBlur={e  => (e.currentTarget.style.borderColor = "var(--input-border)")}
       />
     </div>
   );
 }
 
-function ModalSubmitBtn({ loading, label, loadingLabel }: { loading: boolean; label: string; loadingLabel: string }) {
+function MSB({ busy, label }: { busy: boolean; label: string }) {
   return (
-    <button
-      type="submit"
-      disabled={loading}
+    <button type="submit" disabled={busy}
       style={{
-        width: "100%", padding: "13px 16px", marginTop: 8,
-        borderRadius: 12, border: "none",
+        width: "100%", padding: "12px 16px", marginTop: 6,
+        borderRadius: 11, border: "none",
         background: "linear-gradient(135deg, var(--primary) 0%, var(--accent-purple) 100%)",
         color: "#fff", fontSize: 15, fontWeight: 700,
-        cursor: loading ? "default" : "pointer",
-        opacity: loading ? 0.75 : 1,
-        transition: "opacity 0.15s, transform 0.15s",
-        fontFamily: "inherit",
+        cursor: busy ? "default" : "pointer", opacity: busy ? 0.72 : 1,
+        transition: "opacity 0.15s, transform 0.15s", fontFamily: "inherit",
       }}
-      onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = "translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
+      onMouseEnter={e => { if (!busy) e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
     >
-      {loading ? loadingLabel : label}
+      {busy ? "Please wait…" : label}
     </button>
   );
 }

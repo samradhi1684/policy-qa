@@ -391,7 +391,7 @@ export default function Sidebar({
                 Chat history, renaming, search and document uploads are only
                 available with an account.
                 <a
-                  href="/signin"
+                  href="/"
                   style={{
                     display: "block",
                     marginTop: 10,
@@ -542,7 +542,7 @@ export default function Sidebar({
             
             {isGuest ? (
               <button
-                onClick={() => window.location.href = "/signup"}
+                onClick={() => window.location.href = "/"}
                 style={{
                   width: "100%",
                   marginTop: "6px",
@@ -562,7 +562,7 @@ export default function Sidebar({
               <button
                 onClick={() => {
                   logout();
-                  window.location.replace("/signin");
+                  window.location.replace("/");
                 }}
                 style={{
                   width: "100%",
