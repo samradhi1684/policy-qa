@@ -120,12 +120,6 @@ export default function LandingPage() {
             official government sources.
           </p>
 
-          {/* CTA buttons */}
-          <div className="hero-buttons">
-            <button onClick={() => setModal("signup")}   className="btn-primary btn-lg">Create account</button>
-            <button onClick={() => router.push("/chat")} className="btn-ghost   btn-lg">Continue as guest</button>
-          </div>
-
           {/* ── Country selector ───────────────────────────────────────── */}
           <div className="country-selector-wrap">
             <div className="country-capsule" role="group" aria-label="Select country dataset">
@@ -134,20 +128,20 @@ export default function LandingPage() {
                 return (
                   <button
                     key={c.id}
-                    className={`capsule-segment ${active ? "capsule-segment-active" : ""}`}
+                    className={`capsule-segment ${active ? "capsule-segment-active" : ""} ${!c.live ? "capsule-segment-disabled" : ""}`}
                     onClick={() => setCountry(c.id)}
                     aria-pressed={active}
-                    title={c.live ? undefined : "India dataset coming soon"}
                   >
                     <span className="country-flag">{c.flag}</span>
-                    <span className="country-abbr">{c.id === "dsire" ? "USA" : "India"}</span>
+                    <span className="country-abbr">{c.id === "dsire" ? "United States of America" : "India"}</span>
+                    {!c.live && (
+                      <span className="coming-soon-inline">Coming soon</span>
+                    )}
                     {i < COUNTRIES.length - 1 && <span className="capsule-divider" aria-hidden="true" />}
                   </button>
                 );
               })}
             </div>
-            {/* Coming soon label below India */}
-            <span className="coming-soon-label">🇮🇳 India coming soon</span>
           </div>
 
           {/* ── Input zone ─────────────────────────────────────────────── */}
@@ -289,12 +283,7 @@ export default function LandingPage() {
           font-size: 16.5px; line-height: 1.65;
           color: var(--placeholder-text);
           max-width: 640px;
-          margin: 0 0 28px;
-        }
-        .hero-buttons {
-          display: flex; align-items: center; justify-content: center;
-          gap: 14px; flex-wrap: wrap;
-          margin-bottom: 48px;
+          margin: 0 0 40px;
         }
 
         /* ── Country selector ─────────────────────────────── */
@@ -302,7 +291,7 @@ export default function LandingPage() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 8px;
+          gap: 0;
           margin-bottom: 28px;
         }
         .country-capsule {
@@ -345,15 +334,25 @@ export default function LandingPage() {
         }
         .country-flag { font-size: 18px; line-height: 1; }
         .country-abbr { font-size: 15px; font-weight: 600; }
-        .coming-soon-label {
-          font-size: 11px; font-weight: 600;
+        .capsule-segment-disabled {
+          opacity: 0.72;
+          cursor: default;
+        }
+        .coming-soon-inline {
+          font-size: 9px; font-weight: 700;
           color: var(--accent-purple);
           background: var(--accent-purple-soft);
           border: 1px solid var(--accent-purple-border);
           border-radius: 999px;
-          padding: 3px 10px;
-          letter-spacing: 0.02em;
+          padding: 2px 6px;
+          letter-spacing: 0.03em;
           white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .capsule-segment-active .coming-soon-inline {
+          color: #fff;
+          background: rgba(255,255,255,0.22);
+          border-color: rgba(255,255,255,0.35);
         }
 
         /* ── Input zone ───────────────────────────────────── */
