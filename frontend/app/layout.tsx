@@ -4,8 +4,8 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Renewable Energy Policy QA",
-  description: "Ask questions about renewable energy policies",
+  title: "PolicySense",
+  description: "Ask policy questions. Get answers you can verify.",
 };
 
 export default function RootLayout({

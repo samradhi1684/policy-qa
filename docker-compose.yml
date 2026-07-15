@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - VLLM_API_KEY=${EMBEDDING_API_KEY}   # ← Changed
+      - VLLM_API_KEY=${EMBEDDING_API_KEY}
     ports:
       - "8003:8003"
     volumes:

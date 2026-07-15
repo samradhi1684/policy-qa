@@ -14,7 +14,6 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     OnboardingRequest,
-    GoogleAuthRequest,
 )
 
 from app.services.auth_service import (

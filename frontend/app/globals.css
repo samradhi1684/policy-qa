@@ -3,17 +3,15 @@
 /*
  * Design language: calm, academic, research-focused (Elicit-inspired).
  * Dominant white surfaces on a very light green gradient background.
- * Accents: pastel green (primary), soft brown (secondary), muted purple
- * (tertiary, used sparingly for provenance/citation affordances).
- *
- * Every component reads these tokens, so the palette is defined once here.
+ * Green is primary/dominant. Purple is used as a secondary accent for
+ * citations, badges, interactive highlights, and decorative elements.
  */
 :root {
   /* Core surface colors */
   --background: #ffffff;
   --foreground: #22301f;
 
-  /* App-level gradient backdrop (very light green) */
+  /* App-level gradient backdrop */
   --app-gradient: linear-gradient(180deg, #f4faf3 0%, #ffffff 45%, #f6faf4 100%);
   --surface-soft: #f7faf5;
 
@@ -41,26 +39,31 @@
   --sources-bg: #ffffff;
   --sources-border: #e5ece2;
 
-  /* Brand: pastel green primary */
+  /* Brand: green primary (dominant) */
   --accent: #4d7c58;
   --primary: #4d7c58;
   --primary-hover: #3e6a49;
   --primary-soft: #ecf5ec;
   --primary-soft-border: #d5e6d4;
 
-  /* Secondary accents */
-  --accent-brown: #8a7357;        /* soft brown */
+  /* Secondary accents — brown */
+  --accent-brown: #8a7357;
   --accent-brown-soft: #f6f1ea;
-  --accent-purple: #7b6fa8;       /* muted purple */
-  --accent-purple-soft: #f1eff8;
+
+  /* Purple accent (secondary, used for highlights, citations, badges, decorative) */
+  --accent-purple: #7b5ea8;
+  --accent-purple-hover: #6a4f95;
+  --accent-purple-soft: #f0edf8;
+  --accent-purple-border: #d5cbee;
+  --accent-purple-text: #5a4580;
 
   /* Badges */
   --badge-gov-bg: #ecf5ec;
   --badge-gov-text: #3e6a49;
   --badge-news-bg: #f6f1ea;
   --badge-news-text: #8a7357;
-  --badge-guide-bg: #f1eff8;
-  --badge-guide-text: #7b6fa8;
+  --badge-guide-bg: #f0edf8;
+  --badge-guide-text: #5a4580;
   --badge-web-bg: #eef7f4;
   --badge-web-text: #2f7d6d;
   --badge-used-bg: #eaf5ec;
@@ -68,6 +71,7 @@
 
   --shadow-sm: 0 1px 3px rgba(38, 60, 40, 0.06);
   --shadow-md: 0 6px 24px rgba(38, 60, 40, 0.08);
+  --shadow-purple: 0 4px 20px rgba(123, 94, 168, 0.15);
 }
 
 * {
@@ -101,9 +105,9 @@ body {
   background: #b4ccab;
 }
 
-/* Evidence highlight (source panel) */
+/* Evidence highlight (source panel) — purple tint */
 mark {
-  background: #dcefd8;
+  background: #ddd6f8;
   border-radius: 3px;
   padding: 1px 2px;
 }
