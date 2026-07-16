@@ -115,9 +115,7 @@ export default function LandingPage() {
 
           {/* Subtitle */}
           <p className="hero-sub">
-            PolicySense reads renewable energy policy documents from the US and India,
-            retrieves the most relevant evidence, and generates answers grounded in
-            official government sources.
+            Explore renewable energy policies without searching through hundreds of pages. Ask away — PolicySense answers your questions using official policy documents.
           </p>
 
           {/* ── Country selector ───────────────────────────────────────── */}
