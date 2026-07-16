@@ -34,6 +34,43 @@ import {
 
 const DEFAULT_COUNTRY = "dsire"; // matches the sidebar MODELS ids
 
+// ─── Guest session persistence keys ───────────────────────────────────────────
+// We use sessionStorage so the guest conversation survives tab switches (the
+// browser keeps sessionStorage alive for the lifetime of the tab) but is
+// automatically discarded when the tab is closed or the user navigates away
+// to the landing page and clicks "back". Intentional exit (BackButton / create
+// account) should call clearGuestSession() to wipe it explicitly.
+const GUEST_MESSAGES_KEY = "policysense_guest_messages";
+const GUEST_COUNTRY_KEY  = "policysense_guest_country";
+
+function saveGuestSession(messages: Message[], country: string) {
+  try {
+    sessionStorage.setItem(GUEST_MESSAGES_KEY, JSON.stringify(messages));
+    sessionStorage.setItem(GUEST_COUNTRY_KEY,  country);
+  } catch { /* storage unavailable */ }
+}
+
+function loadGuestSession(): { messages: Message[]; country: string } | null {
+  try {
+    const raw = sessionStorage.getItem(GUEST_MESSAGES_KEY);
+    if (!raw) return null;
+    const messages: Message[] = JSON.parse(raw);
+    const country = sessionStorage.getItem(GUEST_COUNTRY_KEY) ?? DEFAULT_COUNTRY;
+    return { messages, country };
+  } catch {
+    return null;
+  }
+}
+
+function clearGuestSession() {
+  try {
+    sessionStorage.removeItem(GUEST_MESSAGES_KEY);
+    sessionStorage.removeItem(GUEST_COUNTRY_KEY);
+  } catch { /* ignore */ }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function Home() {
   const { token, isGuest, ready } = useAuth();
 
@@ -73,19 +110,52 @@ export default function Home() {
     setActiveMessages([]);
     setSourcePaneSources(null);
     setChatDocuments([]);
+    clearGuestSession();
   }, []);
+
+  // ── On mount: restore a previous guest session if one exists ──────────────
+  // This runs once after the AuthProvider has finished its token check (ready).
+  // If the user is a guest and a saved session is found in sessionStorage we
+  // re-hydrate the conversation without any network call.
+  useEffect(() => {
+    if (!ready) return;
+    if (token) return; // authenticated users load their chats via the API below
+
+    const saved = loadGuestSession();
+    if (saved && saved.messages.length > 0) {
+      setActiveChatId("guest");
+      setActiveMessages(saved.messages);
+      setSelectedModel(saved.country);
+    }
+  // Only run once after ready flips to true
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  // ── Persist guest messages whenever they change ────────────────────────────
+  // Only writes when we are actually in a guest session so authenticated
+  // users are never affected.
+  useEffect(() => {
+    if (!ready || token) return;               // skip for authenticated users
+    if (activeMessages.length === 0) return;  // nothing to save yet
+    saveGuestSession(activeMessages, selectedModel);
+  }, [activeMessages, selectedModel, token, ready]);
 
   // Load chats only for authenticated users.
   useEffect(() => {
     if (!ready) return;
 
     if (!token) {
-      clearSessionState();
+      // For guests we clear the React-level chat list but deliberately DO NOT
+      // call clearGuestSession() here — that would wipe a session that was
+      // just restored a few lines above.
+      setChats([]);
       return;
     }
 
+    // Authenticated: clear any stale guest session and load real chats.
+    clearGuestSession();
     listChats().then(setChats).catch(() => {});
-  }, [token, ready, clearSessionState]);
+  }, [token, ready]);
 
   /**
    * Replit-style onboarding handoff: if the person typed a prompt on the
@@ -120,7 +190,13 @@ export default function Home() {
   useEffect(() => {
     function revalidate() {
       if (!localStorage.getItem("token")) {
-        clearSessionState();
+        // Logged out — wipe authenticated state but preserve any guest session
+        // that might be in sessionStorage (it's harmless there).
+        setChats([]);
+        setActiveChatId(null);
+        setActiveMessages([]);
+        setSourcePaneSources(null);
+        setChatDocuments([]);
       }
     }
 
@@ -134,11 +210,12 @@ export default function Home() {
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("focus", revalidate);
     };
-  }, [clearSessionState]);
+  }, []);
 
   async function handleNewChat() {
     if (!token) {
-      // Guest: temporary, in-memory conversation only.
+      // Guest: start a fresh in-memory conversation and clear any saved one.
+      clearGuestSession();
       setActiveChatId("guest");
       setActiveMessages([]);
       setSourcePaneSources(null);
@@ -211,6 +288,8 @@ export default function Home() {
     setSourcePaneSources(null);
     setChatDocuments([]);
     setQuestion("");
+    // If guest, wipe saved session too — country change means a fresh start.
+    if (!token) clearGuestSession();
   }
 
   function handleSourceClick(sources: Source[], index: number) {
@@ -271,8 +350,8 @@ export default function Home() {
    * Guests cannot reach this path (upload is disabled in the input bar).
    */
   async function handleFileSelect(file: File | null) {
-  setSelectedFile(file);
-}
+    setSelectedFile(file);
+  }
 
   const handleSend = useCallback(
     async (overrideQuestion?: unknown) => {
@@ -285,8 +364,8 @@ export default function Home() {
       setLoading(true);
       setSourcePaneSources(null);
 
-      const fileToUpload = selectedFile;   // ← ADD
-      setSelectedFile(null);               // ← ADD: chip disappears immediately
+      const fileToUpload = selectedFile;
+      setSelectedFile(null);
 
       let chatId = activeChatId;
 
@@ -308,7 +387,6 @@ export default function Home() {
       // prior turns instead of the router/planner seeing empty history on
       // every single message.
 
-      // AFTER: insert this whole block before priorHistory
       if (fileToUpload && token && chatId && chatId !== "guest") {
         setUploadProgress(0);
         try {
@@ -321,23 +399,19 @@ export default function Home() {
         }
       }
 
-
-
       const priorHistory = activeMessages
         .filter((m: any) => !m.thinking && typeof m.content === "string" && m.content.trim() !== "")
         .map((m: any) => ({ role: m.role, content: m.content }));
 
-  
       setActiveMessages((prev) => [
         ...prev,
         {
           role: "user",
           content: currentQuestion,
-          file: fileToUpload?.name,        // ← ADD
+          file: fileToUpload?.name,
           created_at: new Date().toISOString(),
         },
       ]);
-
 
       // Placeholder assistant message in "thinking" state.
       setActiveMessages((prev) => [
@@ -354,7 +428,6 @@ export default function Home() {
         await queryInChatStream(chatId, currentQuestion, countryRef.current, {
           onThinking: () => {},
 
-          
           onToken: (tok) => {
             setActiveMessages((prev) => {
               const next = [...prev];
@@ -382,7 +455,7 @@ export default function Home() {
             });
           },
         },
-        priorHistory,);
+        priorHistory);
 
         if (token) {
           const updatedChats = await listChats();
@@ -474,7 +547,7 @@ export default function Home() {
                 padding: "4px 12px",
               }}
             >
-              Guest mode · chats aren’t saved ·{" "}
+              Guest mode · chats aren't saved ·{" "}
               <a
                 href="/signin"
                 style={{ color: "var(--primary)", textDecoration: "none" }}
