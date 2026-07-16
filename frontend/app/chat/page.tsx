@@ -32,21 +32,19 @@ import {
   PENDING_COUNTRY_KEY,
 } from "../page";
 
-const DEFAULT_COUNTRY = "dsire"; // matches the sidebar MODELS ids
+const DEFAULT_COUNTRY = "dsire";
 
-// ─── Guest session persistence keys ───────────────────────────────────────────
-// We use sessionStorage so the guest conversation survives tab switches (the
-// browser keeps sessionStorage alive for the lifetime of the tab) but is
-// automatically discarded when the tab is closed or the user navigates away
-// to the landing page and clicks "back". Intentional exit (BackButton / create
-// account) should call clearGuestSession() to wipe it explicitly.
+// ─── Guest session persistence ────────────────────────────────────────────────
+// sessionStorage survives tab switches but is cleared when the tab is closed.
+// AuthContext has been updated to NOT call sessionStorage.clear() so these
+// keys are safe across auth lifecycle events.
 const GUEST_MESSAGES_KEY = "policysense_guest_messages";
 const GUEST_COUNTRY_KEY  = "policysense_guest_country";
 
 function saveGuestSession(messages: Message[], country: string) {
   try {
     sessionStorage.setItem(GUEST_MESSAGES_KEY, JSON.stringify(messages));
-    sessionStorage.setItem(GUEST_COUNTRY_KEY,  country);
+    sessionStorage.setItem(GUEST_COUNTRY_KEY, country);
   } catch { /* storage unavailable */ }
 }
 
@@ -55,6 +53,7 @@ function loadGuestSession(): { messages: Message[]; country: string } | null {
     const raw = sessionStorage.getItem(GUEST_MESSAGES_KEY);
     if (!raw) return null;
     const messages: Message[] = JSON.parse(raw);
+    if (!Array.isArray(messages) || messages.length === 0) return null;
     const country = sessionStorage.getItem(GUEST_COUNTRY_KEY) ?? DEFAULT_COUNTRY;
     return { messages, country };
   } catch {
@@ -62,14 +61,13 @@ function loadGuestSession(): { messages: Message[]; country: string } | null {
   }
 }
 
-function clearGuestSession() {
+export function clearGuestSession() {
   try {
     sessionStorage.removeItem(GUEST_MESSAGES_KEY);
     sessionStorage.removeItem(GUEST_COUNTRY_KEY);
   } catch { /* ignore */ }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const { token, isGuest, ready } = useAuth();
@@ -87,90 +85,62 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [activeMessages, setActiveMessages] = useState<Message[]>([]);
 
-  const [sourcePaneSources, setSourcePaneSources] = useState<Source[] | null>(
-    null
-  );
+  const [sourcePaneSources, setSourcePaneSources] = useState<Source[] | null>(null);
   const [sourcePaneIndex, setSourcePaneIndex] = useState(0);
 
-  // Latest country, readable inside async closures without re-binding.
   const countryRef = useRef(selectedModel);
   countryRef.current = selectedModel;
 
-  /**
-   * SECURITY: wipe everything belonging to a session from component state.
-   * Called on logout, on bfcache restore without a token, and whenever the
-   * token disappears (e.g. logout in another tab). This is what prevents
-   * the "press back after logout and see the old account's chats" bug —
-   * the page can be restored from the browser's back/forward cache with
-   * its old React state intact, so we re-validate on every restore.
-   */
-  const clearSessionState = useCallback(() => {
-    setChats([]);
-    setActiveChatId(null);
-    setActiveMessages([]);
-    setSourcePaneSources(null);
-    setChatDocuments([]);
-    clearGuestSession();
-  }, []);
+  // True once we have attempted to restore a guest session. Using a ref
+  // (not state) means the flag survives re-renders without triggering them,
+  // and it is never reset by React's reconciler. This guarantees the restore
+  // is a strict one-shot even under StrictMode double-invoke.
+  const guestRestoreDone = useRef(false);
 
-  // ── On mount: restore a previous guest session if one exists ──────────────
-  // This runs once after the AuthProvider has finished its token check (ready).
-  // If the user is a guest and a saved session is found in sessionStorage we
-  // re-hydrate the conversation without any network call.
+  // ── ONE-SHOT guest session restore ────────────────────────────────────────
+  // Runs after AuthContext finishes its localStorage check (ready === true).
+  // Using an empty dep array + early-return guards keeps this truly one-shot:
+  // the effect body only does work the very first time ready && !token.
   useEffect(() => {
     if (!ready) return;
-    if (token) return; // authenticated users load their chats via the API below
+    if (token) return;                    // authenticated — handled below
+    if (guestRestoreDone.current) return; // already ran once this mount
+    guestRestoreDone.current = true;
 
     const saved = loadGuestSession();
-    if (saved && saved.messages.length > 0) {
+    if (saved) {
       setActiveChatId("guest");
       setActiveMessages(saved.messages);
       setSelectedModel(saved.country);
     }
-  // Only run once after ready flips to true
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  }); // <-- intentionally NO dependency array: runs after every render but
+      //     the ref gate makes it a true one-shot.
 
-  // ── Persist guest messages whenever they change ────────────────────────────
-  // Only writes when we are actually in a guest session so authenticated
-  // users are never affected.
+  // ── Persist guest messages on every change ────────────────────────────────
   useEffect(() => {
-    if (!ready || token) return;               // skip for authenticated users
-    if (activeMessages.length === 0) return;  // nothing to save yet
+    if (!ready || token) return;
+    if (activeMessages.length === 0) return;
     saveGuestSession(activeMessages, selectedModel);
   }, [activeMessages, selectedModel, token, ready]);
 
-  // Load chats only for authenticated users.
+  // ── Load authenticated chats ───────────────────────────────────────────────
   useEffect(() => {
     if (!ready) return;
-
     if (!token) {
-      // For guests we clear the React-level chat list but deliberately DO NOT
-      // call clearGuestSession() here — that would wipe a session that was
-      // just restored a few lines above.
       setChats([]);
       return;
     }
-
-    // Authenticated: clear any stale guest session and load real chats.
-    clearGuestSession();
     listChats().then(setChats).catch(() => {});
   }, [token, ready]);
 
-  /**
-   * Replit-style onboarding handoff: if the person typed a prompt on the
-   * landing page while signed out, it was stashed in sessionStorage before
-   * redirecting to /signin (or /signup -> /onboarding). Once they land back
-   * here authenticated, pick it up, send it through the exact same path as
-   * a normal message, and clear it so it never fires twice.
-   */
+  // ── Pending-prompt handoff (landing → auth → chat) ────────────────────────
   useEffect(() => {
     if (!ready || !token) return;
 
     let pending: string | null = null;
     let pendingCountry: string | null = null;
     try {
-      pending = sessionStorage.getItem(PENDING_PROMPT_KEY);
+      pending        = sessionStorage.getItem(PENDING_PROMPT_KEY);
       pendingCountry = sessionStorage.getItem(PENDING_COUNTRY_KEY);
       sessionStorage.removeItem(PENDING_PROMPT_KEY);
       sessionStorage.removeItem(PENDING_COUNTRY_KEY);
@@ -179,25 +149,36 @@ export default function Home() {
     }
 
     if (!pending) return;
-
     if (pendingCountry) setSelectedModel(pendingCountry);
     setQuestion(pending);
     setTimeout(() => handleSend(pending), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, token]);
 
-  // Guard against bfcache restores exposing a logged-out session's data.
+  // ── bfcache / focus guard ─────────────────────────────────────────────────
+  // Only wipes state when an *authenticated* user's token has disappeared
+  // (e.g. logout in another tab). Guest sessions are left alone — the whole
+  // point is that they survive tab switches.
   useEffect(() => {
     function revalidate() {
-      if (!localStorage.getItem("token")) {
-        // Logged out — wipe authenticated state but preserve any guest session
-        // that might be in sessionStorage (it's harmless there).
-        setChats([]);
-        setActiveChatId(null);
-        setActiveMessages([]);
-        setSourcePaneSources(null);
-        setChatDocuments([]);
-      }
+      // If there IS a token in localStorage, auth state is still valid —
+      // nothing to do regardless of whether we're authenticated or guest.
+      if (localStorage.getItem("token")) return;
+
+      // No token: clear authenticated-user state. Do not touch guest session.
+      setChats([]);
+      setSourcePaneSources(null);
+      setChatDocuments([]);
+
+      // Only blank the messages/chatId if we were actually showing an
+      // authenticated chat (activeChatId is a UUID, not "guest").
+      setActiveChatId((prev) => {
+        if (prev && prev !== "guest") {
+          setActiveMessages([]);
+          return null;
+        }
+        return prev; // guest session — leave it untouched
+      });
     }
 
     function onPageShow(e: PageTransitionEvent) {
@@ -212,9 +193,10 @@ export default function Home() {
     };
   }, []);
 
+  // ── Chat action handlers ───────────────────────────────────────────────────
+
   async function handleNewChat() {
     if (!token) {
-      // Guest: start a fresh in-memory conversation and clear any saved one.
       clearGuestSession();
       setActiveChatId("guest");
       setActiveMessages([]);
@@ -222,7 +204,6 @@ export default function Home() {
       setChatDocuments([]);
       return;
     }
-
     const chat = await createChat();
     setChats((prev) => [chat, ...prev]);
     setActiveChatId(chat.id);
@@ -234,7 +215,6 @@ export default function Home() {
   async function handleSelectChat(id: string) {
     setActiveChatId(id);
     setSourcePaneSources(null);
-
     const messages = await getMessages(id);
     setActiveMessages(
       messages.map((m: any) => ({
@@ -243,17 +223,12 @@ export default function Home() {
         created_at: m.created_at,
       }))
     );
-
-    // Restore this chat's uploaded documents so they show in the UI.
-    listChatDocuments(id)
-      .then(setChatDocuments)
-      .catch(() => setChatDocuments([]));
+    listChatDocuments(id).then(setChatDocuments).catch(() => setChatDocuments([]));
   }
 
   async function handleDeleteChat(id: string) {
     await deleteChat(id);
     setChats((prev) => prev.filter((c) => c.id !== id));
-
     if (activeChatId === id) {
       setActiveChatId(null);
       setActiveMessages([]);
@@ -276,10 +251,6 @@ export default function Home() {
     );
   }
 
-  /**
-   * Switching country resets the conversation context so no stale
-   * welcome copy, suggestions, or cross-country answers linger.
-   */
   function handleModelChange(model: string) {
     if (model === selectedModel) return;
     setSelectedModel(model);
@@ -288,7 +259,6 @@ export default function Home() {
     setSourcePaneSources(null);
     setChatDocuments([]);
     setQuestion("");
-    // If guest, wipe saved session too — country change means a fresh start.
     if (!token) clearGuestSession();
   }
 
@@ -303,18 +273,9 @@ export default function Home() {
 
   async function handleRegenerate(index: number) {
     if (!activeChatId) return;
-
     const assistant = activeMessages[index];
-    const user = activeMessages[index - 1];
-
-    if (
-      !assistant ||
-      !user ||
-      assistant.role !== "assistant" ||
-      user.role !== "user"
-    ) {
-      return;
-    }
+    const user      = activeMessages[index - 1];
+    if (!assistant || !user || assistant.role !== "assistant" || user.role !== "user") return;
 
     setLoading(true);
     setActiveMessages((prev) => {
@@ -324,12 +285,7 @@ export default function Home() {
     });
 
     try {
-      const response = await regenerateAnswer(
-        activeChatId,
-        user.content,
-        assistant.sources || []
-      );
-
+      const response = await regenerateAnswer(activeChatId, user.content, assistant.sources || []);
       setActiveMessages((prev) => {
         const next = [...prev];
         next[index] = {
@@ -345,10 +301,6 @@ export default function Home() {
     }
   }
 
-  /**
-   * Upload a document into the current chat so it joins retrieval.
-   * Guests cannot reach this path (upload is disabled in the input bar).
-   */
   async function handleFileSelect(file: File | null) {
     setSelectedFile(file);
   }
@@ -381,19 +333,13 @@ export default function Home() {
         }
       }
 
-      // Snapshot the transcript so far (before this turn's user/placeholder
-      // messages are appended below). Guests have no DB-backed chat, so
-      // this is what lets follow-up questions resolve references against
-      // prior turns instead of the router/planner seeing empty history on
-      // every single message.
-
       if (fileToUpload && token && chatId && chatId !== "guest") {
         setUploadProgress(0);
         try {
           const doc = await uploadChatDocument(chatId, fileToUpload, setUploadProgress);
           setChatDocuments((prev) => [...prev, doc]);
         } catch {
-          // non-fatal: question still sends, just without the doc in retrieval
+          // non-fatal
         } finally {
           setUploadProgress(null);
         }
@@ -413,7 +359,6 @@ export default function Home() {
         },
       ]);
 
-      // Placeholder assistant message in "thinking" state.
       setActiveMessages((prev) => [
         ...prev,
         {
@@ -425,37 +370,37 @@ export default function Home() {
       ]);
 
       try {
-        await queryInChatStream(chatId, currentQuestion, countryRef.current, {
-          onThinking: () => {},
-
-          onToken: (tok) => {
-            setActiveMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-
-              if (!last || last.role !== "assistant") return prev;
-
-              next[next.length - 1] = {
-                ...last,
-                thinking: false,
-                content: last.content + tok,
-              };
-
-              return next;
-            });
+        await queryInChatStream(
+          chatId,
+          currentQuestion,
+          countryRef.current,
+          {
+            onThinking: () => {},
+            onToken: (tok) => {
+              setActiveMessages((prev) => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (!last || last.role !== "assistant") return prev;
+                next[next.length - 1] = {
+                  ...last,
+                  thinking: false,
+                  content: last.content + tok,
+                };
+                return next;
+              });
+            },
+            onDone: ({ sources }) => {
+              setActiveMessages((prev) => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (!last || last.role !== "assistant") return prev;
+                next[next.length - 1] = { ...last, thinking: false, sources };
+                return next;
+              });
+            },
           },
-
-          onDone: ({ sources }) => {
-            setActiveMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (!last || last.role !== "assistant") return prev;
-              next[next.length - 1] = { ...last, thinking: false, sources };
-              return next;
-            });
-          },
-        },
-        priorHistory);
+          priorHistory
+        );
 
         if (token) {
           const updatedChats = await listChats();
@@ -465,7 +410,6 @@ export default function Home() {
         setActiveMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
-
           if (last && last.role === "assistant" && last.thinking) {
             next[next.length - 1] = {
               role: "assistant",
@@ -474,7 +418,6 @@ export default function Home() {
             };
             return next;
           }
-
           return [
             ...prev,
             {
@@ -492,14 +435,7 @@ export default function Home() {
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        background: "var(--background)",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ display: "flex", height: "100vh", background: "var(--background)", overflow: "hidden" }}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
@@ -514,57 +450,25 @@ export default function Home() {
         onModelChange={handleModelChange}
       />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          minWidth: 0,
-        }}
-      >
-        {/* Top bar: consistent back button + guest indicator */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "10px 16px 6px",
-            flexShrink: 0,
-          }}
-        >
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px 6px", flexShrink: 0 }}>
           <BackButton fallbackHref="/" />
 
           {isGuest && (
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--accent-brown, #8a7357)",
-                background: "var(--surface-soft, #faf8f4)",
-                border: "1px solid var(--sidebar-border)",
-                borderRadius: 999,
-                padding: "4px 12px",
-              }}
-            >
+            <span style={{
+              fontSize: 12, fontWeight: 600,
+              color: "var(--accent-brown, #8a7357)",
+              background: "var(--surface-soft, #faf8f4)",
+              border: "1px solid var(--sidebar-border)",
+              borderRadius: 999, padding: "4px 12px",
+            }}>
               Guest mode · chats aren't saved ·{" "}
-              <a
-                href="/signin"
-                style={{ color: "var(--primary)", textDecoration: "none" }}
-              >
-                Sign in
-              </a>
+              <a href="/signin" style={{ color: "var(--primary)", textDecoration: "none" }}>Sign in</a>
             </span>
           )}
 
           {chatDocuments.length > 0 && (
-            <span
-              style={{
-                fontSize: 12,
-                color: "var(--placeholder-text)",
-                marginLeft: "auto",
-              }}
-            >
+            <span style={{ fontSize: 12, color: "var(--placeholder-text)", marginLeft: "auto" }}>
               📄 {chatDocuments.map((d) => d.name).join(" · ")}
             </span>
           )}
@@ -588,12 +492,7 @@ export default function Home() {
           />
         )}
 
-        <div
-          style={{
-            padding: "12px 24px 20px",
-            background: "var(--background)",
-          }}
-        >
+        <div style={{ padding: "12px 24px 20px", background: "var(--background)" }}>
           <InputBar
             value={question}
             onChange={setQuestion}

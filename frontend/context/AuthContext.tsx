@@ -34,18 +34,39 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Keys owned by AuthContext — the only sessionStorage entries we ever nuke.
+// Guest-session keys (policysense_guest_*) are intentionally NOT listed here
+// so they survive token expiry and tab switches.
+const AUTH_SESSION_KEYS = [
+  "policysense_pending_prompt",
+  "policysense_pending_country",
+];
+
 /**
- * Removes every trace of the previous session from browser storage.
- * Centralised so logout and invalid-token handling behave identically.
+ * Removes every trace of the *auth* session from browser storage.
+ * Deliberately does NOT call sessionStorage.clear() so that guest-session
+ * data written by the chat page survives token expiry and tab switches.
  */
-function purgeSessionStorage() {
+function purgeAuthStorage() {
   try {
     localStorage.removeItem("token");
-    // Defensive: clear anything else the app may have cached per-session.
-    sessionStorage.clear();
+    for (const key of AUTH_SESSION_KEYS) {
+      sessionStorage.removeItem(key);
+    }
   } catch {
     /* storage unavailable (SSR / privacy mode) — nothing to purge */
   }
+}
+
+/**
+ * When a guest becomes authenticated we DO want to wipe their guest
+ * conversation so it doesn't bleed into the real account's chat page.
+ */
+function purgeGuestSession() {
+  try {
+    sessionStorage.removeItem("policysense_guest_messages");
+    sessionStorage.removeItem("policysense_guest_country");
+  } catch { /* ignore */ }
 }
 
 export function AuthProvider({
@@ -66,7 +87,9 @@ export function AuthProvider({
       if (!response.ok) {
         // Token is stale/invalid — treat as logged out rather than
         // keeping a half-authenticated state around.
-        purgeSessionStorage();
+        // NOTE: we use purgeAuthStorage (not sessionStorage.clear) so
+        // any saved guest session is left intact.
+        purgeAuthStorage();
         setToken(null);
         setUser(null);
         throw new Error("Session expired");
@@ -104,13 +127,16 @@ export function AuthProvider({
   }, [fetchUser]);
 
   async function login(tok: string): Promise<User> {
+    // Wipe any guest session when the user actually logs in so the chat
+    // page starts clean under the real account.
+    purgeGuestSession();
     localStorage.setItem("token", tok);
     setToken(tok);
     return await fetchUser(tok);
   }
 
   function logout() {
-    purgeSessionStorage();
+    purgeAuthStorage();
     setToken(null);
     setUser(null);
   }
