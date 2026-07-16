@@ -12,8 +12,8 @@ export const PENDING_COUNTRY_KEY = "policysense_pending_country";
 
 // India is "coming soon" — dsire is the only live dataset
 const COUNTRIES = [
-  { id: "dsire", label: "USA", live: true },
-  { id: "mnre",  label: "India", live: false },
+  { id: "dsire", label: "USA",   flag: "🇺🇸", live: true },
+  { id: "mnre",  label: "India", flag: "🇮🇳", live: false },
 ];
 
 const API_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/+$/, "");
