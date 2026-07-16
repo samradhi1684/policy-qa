@@ -1219,6 +1219,14 @@ class Pipeline:
             chat_id,
             has_document=has_document,
         )
+                
+        logger.info("=" * 60)
+        logger.info("prepare_for_stream()")
+        logger.info("chat_id = %s", chat_id)
+        logger.info("has_document = %s", has_document)
+        logger.info("question = %s", question)
+        logger.info("resolved_query = %s", resolved_query)
+        logger.info("=" * 60)
 
         # If the frontend signals that uploaded documents are present, never
         # short-circuit — always run document retrieval regardless of how the
@@ -1238,6 +1246,11 @@ class Pipeline:
         # hurt similarity against the uploaded doc's chunks.
         session_query = question if has_document else (resolved_query if resolved_query.strip() else question)
         extra_chunks = self._session_chunks(session_query, chat_id)
+        
+        logger.info(
+            "prepare_for_stream(): retrieved %d uploaded chunks",
+            len(extra_chunks) if extra_chunks else 0,
+        )
 
         # If the frontend told us a document exists but we got nothing back
         # from the store, return a clear message instead of silently falling
@@ -1351,7 +1364,20 @@ class Pipeline:
             return None
         try:
             from app.services import uploaded_document_service
+            
+            logger.info("=" * 60)
+            logger.info("_session_chunks()")
+            logger.info("chat_id = %s", chat_id)
+            logger.info("question = %s", question)
+            logger.info("=" * 60)            
+            
             chunks = uploaded_document_service.retrieve(chat_id, embed(question))
+            
+            logger.info(
+                "_session_chunks(): retrieve() returned %d chunks",
+                len(chunks),
+            )
+            
             if not chunks:
                 logger.warning(
                     "_session_chunks: retrieve() returned empty for "

@@ -910,4 +910,11 @@ async def list_chat_documents(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    return uploaded_document_service.list_documents(chat_id)
+    docs = uploaded_document_service.list_documents(chat_id)
+
+    print("========== DOCUMENTS ==========")
+    print("CHAT:", chat_id)
+    print("DOCS:", docs)
+    print("===============================")
+
+    return docs

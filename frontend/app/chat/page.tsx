@@ -350,22 +350,29 @@ export default function Home() {
       // Whether this chat already had docs before this turn
       const alreadyHasDocs = chatDocuments.length > 0;
 
-      if (fileToUpload && token && chatId && chatId !== "guest") {
-        setUploadProgress(0);
-        try {
-          const doc = await uploadChatDocument(chatId, fileToUpload, setUploadProgress);
-          setChatDocuments((prev) => [...prev, doc]);
-        } catch {
-          // non-fatal — proceed without doc context
-        } finally {
-          setUploadProgress(null);
-        }
-      }
-
-      // Signal to the backend that uploaded-document retrieval should be used.
-      // True when a doc was just uploaded this turn OR the chat already has docs.
+      // IMPORTANT: define BEFORE upload
       let uploadedDocThisTurn = false;
-      // (place this BEFORE the upload try/catch, and set uploadedDocThisTurn = true inside the try block on success)
+
+      if (fileToUpload && token && chatId && chatId !== "guest") {
+          setUploadProgress(0);
+
+          try {
+              const doc = await uploadChatDocument(
+                  chatId,
+                  fileToUpload,
+                  setUploadProgress
+              );
+
+              uploadedDocThisTurn = true;
+
+              setChatDocuments((prev) => [...prev, doc]);
+
+          } catch {
+              // proceed without uploaded document
+          } finally {
+              setUploadProgress(null);
+          }
+      }
 
       const hasDocument = uploadedDocThisTurn || alreadyHasDocs;
 
@@ -456,7 +463,7 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [question, loading, activeChatId, token, activeMessages, selectedFile]
+    [question, loading, activeChatId, token, activeMessages, selectedFile, chatDocuments]
   );
 
   return (
