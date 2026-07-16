@@ -431,7 +431,8 @@ export default function Home() {
             },
           },
           hasDocument,
-          priorHistory
+          priorHistory,
+          fileToUpload?.name
         );
 
         if (token) {

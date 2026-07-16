@@ -382,7 +382,8 @@ export async function queryInChatStream(
     onError?: (err: unknown) => void;
   },
   hasDocument?: boolean,
-  history?: { role: string; content: string }[]
+  history?: { role: string; content: string }[],
+  fileName?: string,
 ): Promise<void> {
 
   const token = localStorage.getItem("token");
@@ -390,6 +391,10 @@ export async function queryInChatStream(
   const formData = new FormData();
   formData.append("question", question);
   formData.append("country", country);
+
+  if (fileName) {
+  formData.append("file_name", fileName);
+}
 
   // Tell the backend to prioritise uploaded-document retrieval for this query.
   // The backend pipeline already checks the DB for uploads, but this flag lets

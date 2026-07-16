@@ -29,8 +29,7 @@ class Message(Base):
         String,
         nullable=False,
     )
-
-    # NEW
+    
     file_name: Mapped[str | None] = mapped_column(
         String,
         nullable=True,

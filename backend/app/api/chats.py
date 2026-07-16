@@ -70,6 +70,7 @@ from reportlab.pdfgen import canvas
 from io import BytesIO
 
 import json
+import logging
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 from types import SimpleNamespace
@@ -126,6 +127,7 @@ router = APIRouter(
     prefix="/chats",
     tags=["chats"]
 )
+logger = logging.getLogger(__name__)
 
 
 llm = LLMClient()
@@ -225,6 +227,7 @@ async def query_in_chat(
     web_search: bool = Form(False),
     country: str = Form("dsire"),
     client_history: str | None = Form(None),
+    file_name: str | None = Form(None),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -276,6 +279,7 @@ async def query_in_chat(
             chat_id,
             "user",
             question,
+            file_name=file_name,
         )
 
     download_url = None
@@ -398,10 +402,18 @@ async def query_in_chat_stream(
     web_search: bool = Form(False),
     country: str = Form("dsire"),
     client_history: str | None = Form(None),
+    file_name: str | None = Form(None),
     has_document: bool = Form(False),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    
+        
+    logger.info("=" * 60)
+    logger.info("FILE NAME = %r", file_name)
+    logger.info("QUESTION = %r", question)
+    logger.info("=" * 60)
+
     """
     Server-Sent-Events version of /{chat_id}/query for the plain RAG
     (no file upload) path. Emits, in order:
@@ -451,6 +463,7 @@ async def query_in_chat_stream(
             chat_id,
             "user",
             question,
+            file_name=file_name,
         )
 
     is_new_chat = (

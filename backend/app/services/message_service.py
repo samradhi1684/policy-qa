@@ -12,12 +12,14 @@ async def create_message(
     chat_id: str,
     role: str,
     content: str,
+    file_name: str | None = None,
 ):
     message = Message(
         id=uuid4(),
         chat_id=chat_id,
         role=role,
         content=content,
+        file_name=file_name,
         created_at=datetime.utcnow(),
     )
 
