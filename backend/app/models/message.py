@@ -30,6 +30,12 @@ class Message(Base):
         nullable=False,
     )
 
+    # NEW
+    file_name: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

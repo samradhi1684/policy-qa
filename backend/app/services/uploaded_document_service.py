@@ -143,6 +143,12 @@ def list_documents(chat_id: str) -> List[Dict[str, Any]]:
             .where(UploadedDocument.chat_id == chat_id)
             .order_by(UploadedDocument.created_at)
         ).scalars().all()
+        
+        logger.info(
+                "list_documents(%s): returning %d document(s)",
+                chat_id,
+                len(rows),
+            )
 
     return [
         {
