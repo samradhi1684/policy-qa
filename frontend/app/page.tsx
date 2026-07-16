@@ -110,7 +110,7 @@ export default function LandingPage() {
           {/* Title */}
           <h1 className="hero-title">
             Ask policy questions.<br />
-            <span className="hero-title-serif">Get answers you can verify.</span>
+            <span className="hero-title-serif">Get answers grounded in official sources.</span>
           </h1>
 
           {/* Subtitle */}
