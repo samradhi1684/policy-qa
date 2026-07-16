@@ -536,6 +536,7 @@ export default function Home() {
             onSend={handleSend}
             loading={loading}
             selectedFile={selectedFile}
+            uploadedDocuments={chatDocuments}
             onFileSelect={handleFileSelect}
             uploadDisabled={isGuest}
             uploadDisabledReason="Sign in to upload documents"

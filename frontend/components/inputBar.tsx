@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { Paperclip, Mic, Square, ArrowUp, FileText } from "lucide-react";
+import type { ChatDocument } from "../lib/api";
 
 type Props = {
   value: string;
@@ -9,6 +10,7 @@ type Props = {
   onSend: (question?: string) => void;
   loading?: boolean;
   selectedFile: File | null;
+  uploadedDocuments?: ChatDocument[];
   onFileSelect: (file: File | null) => void;
   /** Guests can't upload documents; shows an explanatory tooltip instead. */
   uploadDisabled?: boolean;
@@ -27,6 +29,7 @@ export default function InputBar({
   onSend,
   loading,
   selectedFile,
+  uploadedDocuments,
   onFileSelect,
   uploadDisabled = false,
   uploadDisabledReason = "Sign in to upload documents",
@@ -170,7 +173,7 @@ export default function InputBar({
         </button>
 
         {/* CHANGED: added × button to remove the file before sending */}
-        {selectedFile && (
+        {selectedFile ? (
           <div
             style={{
               display: "flex",
@@ -186,7 +189,8 @@ export default function InputBar({
               flexShrink: 0,
             }}
           >
-            <FileText size={12} style={{ flexShrink: 0 }} />
+            <FileText size={12} />
+
             <span
               style={{
                 whiteSpace: "nowrap",
@@ -196,17 +200,16 @@ export default function InputBar({
             >
               {selectedFile.name}
             </span>
+
             {uploadProgress !== null && uploadProgress < 100 && (
-              <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                {uploadProgress}%
-              </span>
+              <span>{uploadProgress}%</span>
             )}
+
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onFileSelect(null);
               }}
-              title="Remove file"
               style={{
                 marginLeft: 2,
                 background: "none",
@@ -214,15 +217,42 @@ export default function InputBar({
                 cursor: "pointer",
                 color: "var(--primary)",
                 padding: 0,
-                lineHeight: 1,
-                flexShrink: 0,
                 fontSize: 15,
-                fontWeight: 500,
               }}
             >
               ×
             </button>
           </div>
+        ) : (
+          uploadedDocuments?.[0] && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 12,
+                color: "var(--primary)",
+                background: "var(--primary-soft)",
+                borderRadius: "999px",
+                padding: "4px 10px",
+                maxWidth: 140,
+                overflow: "hidden",
+                flexShrink: 0,
+              }}
+            >
+              <FileText size={12} />
+
+              <span
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {uploadedDocuments[0].name}
+              </span>
+            </div>
+          )
         )}
 
         <textarea
