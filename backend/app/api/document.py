@@ -34,7 +34,7 @@ DOCUMENTS_DIR = (
 from pydantic import BaseModel
 
 from app.services.doc_title_service import get_titles
-from app.services import session_documents
+from app.services import uploaded_document_service
 
 
 class TitlesBody(BaseModel):
@@ -56,10 +56,18 @@ async def document_titles(body: TitlesBody):
 
 @router.get("/{document_id}")
 async def get_document(document_id: str):
-    # Chat-session uploaded documents live in the session store, not on
-    # the corpus documents directory.
-    if document_id.startswith("upload-"):
-        text = session_documents.get_document_text(document_id)
+    # Chat-session uploaded documents are stored in the PostgreSQL-backed
+    # uploaded_document_service (not the old in-memory session_documents).
+    # Document ids for uploads look like "upload::<uuid>" after the pipeline
+    # strips the "upload::" prefix from chunk_ids, or just the raw UUID
+    # string from the /documents list endpoint.
+    if document_id.startswith("upload"):
+        # Strip the "upload::" namespace prefix if present so we have a
+        # plain UUID that get_document_text() can look up by id.
+        lookup_id = document_id.split("::", 1)[-1] if "::" in document_id else document_id
+        text = await run_in_threadpool(
+            uploaded_document_service.get_document_text, lookup_id
+        )
         if text is None:
             raise HTTPException(
                 status_code=404,

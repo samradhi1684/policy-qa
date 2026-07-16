@@ -218,7 +218,11 @@ export default function Home() {
   async function handleSelectChat(id: string) {
     setActiveChatId(id);
     setSourcePaneSources(null);
-    const messages = await getMessages(id);
+    setChatDocuments([]); // clear stale docs immediately while loading
+    const [messages, docs] = await Promise.all([
+      getMessages(id),
+      listChatDocuments(id).catch(() => [] as ChatDocument[]),
+    ]);
     setActiveMessages(
       messages.map((m: any) => ({
         role: m.role,
@@ -226,7 +230,7 @@ export default function Home() {
         created_at: m.created_at,
       }))
     );
-    listChatDocuments(id).then(setChatDocuments).catch(() => setChatDocuments([]));
+    setChatDocuments(docs);
   }
 
   async function handleDeleteChat(id: string) {
@@ -360,7 +364,10 @@ export default function Home() {
 
       // Signal to the backend that uploaded-document retrieval should be used.
       // True when a doc was just uploaded this turn OR the chat already has docs.
-      const hasDocument = !!(fileToUpload && token && chatId !== "guest") || alreadyHasDocs;
+      let uploadedDocThisTurn = false;
+      // (place this BEFORE the upload try/catch, and set uploadedDocThisTurn = true inside the try block on success)
+
+      const hasDocument = uploadedDocThisTurn || alreadyHasDocs;
 
       const priorHistory = activeMessages
         .filter((m: any) => !m.thinking && typeof m.content === "string" && m.content.trim() !== "")

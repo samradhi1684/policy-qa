@@ -905,6 +905,7 @@ class Pipeline:
         question: str,
         chat_history=None,
         chat_id: Optional[str] = None,
+        has_document: bool = False,
     ):
         """
         Classify the message and, for anything that actually needs the
@@ -919,6 +920,11 @@ class Pipeline:
           - short_circuit is None for "domain" routes — callers should
             proceed to retrieval using `resolved_query` (the reference-
             resolved standalone query) instead of the raw `question`.
+
+        When has_document=True the router's general/out_of_scope/clarify
+        short-circuits are suppressed entirely — we skip the wasted LLM
+        call and return a sentinel that prepare_for_stream() will discard,
+        saving ~1-2s per query when an uploaded document is present.
         """
         memory_context = self.memory.build_context_with_summary(
             chat_history,
@@ -931,6 +937,12 @@ class Pipeline:
         logger.info(f"[ROUTER] category={route.category} confidence={route.confidence}")
 
         if route.is_general():
+            # When a document is attached, skip the generic LLM call —
+            # prepare_for_stream() will null out short_circuit and route
+            # to document retrieval anyway. Returning a sentinel avoids the
+            # wasted network round-trip (~1-2s).
+            if has_document:
+                return memory_context, route, question, "__has_document_skip__"
             raw = llm_client.generate(
                 self.prompt_builder.build_conversational(question, memory_context),
                 temperature=0.4,
@@ -939,6 +951,8 @@ class Pipeline:
             return memory_context, route, question, str(getattr(raw, "content", raw)).strip()
 
         if route.is_out_of_scope():
+            if has_document:
+                return memory_context, route, question, "__has_document_skip__"
             raw = llm_client.generate(
                 self.prompt_builder.build_out_of_scope(question),
                 temperature=0.3,
@@ -947,6 +961,8 @@ class Pipeline:
             return memory_context, route, question, str(getattr(raw, "content", raw)).strip()
 
         if route.is_clarify():
+            if has_document:
+                return memory_context, route, question, "__has_document_skip__"
             raw = llm_client.generate(
                 self.prompt_builder.build_clarification(question, memory_context),
                 temperature=0.3,
@@ -1201,27 +1217,46 @@ class Pipeline:
             question,
             chat_history,
             chat_id,
+            has_document=has_document,
         )
 
         # If the frontend signals that uploaded documents are present, never
         # short-circuit — always run document retrieval regardless of how the
-        # router classified the question (e.g. vague "summarize it" questions
-        # would otherwise short-circuit as "general").
+        # router classified the question (e.g. vague "what is the cgpa" would
+        # be classified "general" but should be answered from the uploaded doc).
+        # _plan() already returns a cheap sentinel instead of running the LLM
+        # for these routes when has_document=True, so this just clears it.
         if has_document and short_circuit is not None:
             short_circuit = None
-            resolved_query = question  # use the raw question for doc embedding
+            resolved_query = question  # use raw question for doc embedding
 
         if short_circuit is not None:
             return None, [], short_circuit
 
-        # When has_document is True, ensure _session_chunks is called even if
-        # resolved_query is vague — pass the original question as a fallback
-        # so the embedding has the best chance of matching uploaded chunks.
-        session_query = resolved_query if resolved_query.strip() else question
+        # Use the original question as the embedding query when has_document
+        # is True — the resolved_query may be stripped/rewritten in ways that
+        # hurt similarity against the uploaded doc's chunks.
+        session_query = question if has_document else (resolved_query if resolved_query.strip() else question)
+        extra_chunks = self._session_chunks(session_query, chat_id)
+
+        # If the frontend told us a document exists but we got nothing back
+        # from the store, return a clear message instead of silently falling
+        # through to the corpus index (which knows nothing about the upload).
+        if has_document and not extra_chunks:
+            logger.warning(
+                "prepare_for_stream: has_document=True but _session_chunks "
+                "returned empty for chat_id=%r — upload may have failed or "
+                "not yet been committed.", chat_id
+            )
+            return None, [], (
+                "I couldn't retrieve your uploaded document. "
+                "Please try re-uploading the file and asking again."
+            )
+
         result = self.run(
             query=session_query,
             generate_answer=False,
-            extra_chunks=self._session_chunks(session_query, chat_id),
+            extra_chunks=extra_chunks,
         )
 
         citations = result.get("citations", [])
@@ -1317,7 +1352,17 @@ class Pipeline:
         try:
             from app.services import uploaded_document_service
             chunks = uploaded_document_service.retrieve(chat_id, embed(question))
-            return chunks or None
+            if not chunks:
+                logger.warning(
+                    "_session_chunks: retrieve() returned empty for "
+                    "chat_id=%r — no uploaded chunks found in DB.", chat_id
+                )
+                return None
+            logger.info(
+                "_session_chunks: %d chunks retrieved for chat_id=%r",
+                len(chunks), chat_id,
+            )
+            return chunks
         except Exception:
             logger.exception("Session-document retrieval failed; continuing without uploads")
             return None

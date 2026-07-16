@@ -75,6 +75,14 @@ def add_document(chat_id: str, name: str, text: str) -> Dict[str, Any]:
     embeddings = _embedder.embed_batch(chunks)
 
     doc_id = uuid.uuid4()
+
+    def _to_flat_list(emb) -> list:
+        """Guarantee a 1-D plain Python float list regardless of whether
+        embed_batch returned a list, a 1-D numpy array, or a 2-D array/tensor
+        (shape [1, DIM]) that some client implementations produce."""
+        arr = np.asarray(emb, dtype=np.float32).reshape(-1)
+        return arr.tolist()
+
     # Namespace chunk_id strings so they remain distinguishable from corpus
     # chunk ids downstream (pipeline._doc_id_from_chunk_id relies on this).
     chunk_records = [
@@ -83,7 +91,7 @@ def add_document(chat_id: str, name: str, text: str) -> Dict[str, Any]:
             document_id=doc_id,
             chunk_index=i,
             chunk_text=chunk,
-            embedding=emb if isinstance(emb, list) else list(emb),
+            embedding=_to_flat_list(emb),
             chunk_id=f"upload::{doc_id}_chunk_{i}",
         )
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings))
@@ -191,21 +199,53 @@ def retrieve(chat_id: str, q_emb, top_k: int = 6) -> List[Dict[str, Any]]:
         ).scalars().all()
 
     if not rows:
+        logger.warning("retrieve(): no chunks found in DB for chat_id=%r", chat_id)
         return []
 
-    # Normalise the query vector
-    q = np.asarray(
-        q_emb.detach().cpu().numpy() if hasattr(q_emb, "detach") else q_emb,
-        dtype=np.float32,
-    ).reshape(-1)
+    logger.info("retrieve(): found %d chunks for chat_id=%r", len(rows), chat_id)
+
+    # Normalise the query vector.
+    # embed() returns a (1, DIM) tensor — detach → numpy → flatten to (DIM,).
+    # Guard against nested arrays ([[...]]) from any embedding client variant.
+    raw_q = q_emb.detach().cpu().numpy() if hasattr(q_emb, "detach") else np.asarray(q_emb)
+    q = raw_q.reshape(-1).astype(np.float32)
     q = q / (np.linalg.norm(q) + 1e-8)
 
-    # Stack stored embeddings — JSON column returns plain Python lists
-    mat = np.asarray([r.embedding for r in rows], dtype=np.float32)
+    # Stack stored embeddings.
+    # JSON column returns plain Python lists per row. Each embedding may be
+    # stored as a flat list [f0, f1, ...] or, if embed_batch returned nested
+    # arrays, as [[f0, f1, ...]]. Flatten each row to (DIM,) before stacking.
+    def _flat(emb) -> np.ndarray:
+        return np.asarray(emb, dtype=np.float32).reshape(-1)
+
+    try:
+        mat = np.stack([_flat(r.embedding) for r in rows])  # (N, DIM)
+    except ValueError as e:
+        logger.error(
+            "retrieve(): could not stack chunk embeddings for chat_id=%r — "
+            "embedding shape mismatch? error=%s", chat_id, e
+        )
+        return []
+
+    # Sanity-check dimension alignment before the dot product.
+    if mat.shape[1] != q.shape[0]:
+        logger.error(
+            "retrieve(): embedding dimension mismatch — "
+            "stored=%d query=%d for chat_id=%r",
+            mat.shape[1], q.shape[0], chat_id,
+        )
+        return []
+
     mat = mat / (np.linalg.norm(mat, axis=1, keepdims=True) + 1e-8)
 
     sims = mat @ q
     order = np.argsort(-sims)[:top_k]
+
+    logger.info(
+        "retrieve(): top-%d scores for chat_id=%r: %s",
+        top_k, chat_id,
+        [round(float(sims[int(i)]), 4) for i in order],
+    )
 
     return [
         {
