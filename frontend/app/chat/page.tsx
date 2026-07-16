@@ -78,6 +78,10 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [chatDocuments, setChatDocuments] = useState<ChatDocument[]>([]);
 
+  useEffect(() => {
+    console.log("chatDocuments =", chatDocuments);
+  }, [chatDocuments]);
+
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_COUNTRY);
@@ -231,6 +235,7 @@ export default function Home() {
       }))
     );
     setChatDocuments(docs);
+    console.log("Loaded docs:", docs);
   }
 
   async function handleDeleteChat(id: string) {

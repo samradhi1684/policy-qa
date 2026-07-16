@@ -112,6 +112,12 @@ export default function InputBar({
   // CHANGED: also allow send when a file is selected (even with empty text)
   const canSend = (value.trim().length > 0 || selectedFile !== null) && !loading;
 
+
+  console.log("=== InputBar Render ===");
+  console.log("selectedFile:", selectedFile);
+  console.log("uploadedDocuments:", uploadedDocuments);
+  console.log("canSend:", canSend);
+
   return (
     <div
       style={{
