@@ -5,7 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
   title: "PolicySense",
-  description: "Ask policy questions. Get answers you can verify.",
+  description: "Ask policy questions. Get answers grounded in official sources.",
 };
 
 export default function RootLayout({
