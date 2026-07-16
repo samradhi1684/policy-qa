@@ -341,3 +341,4 @@ The `embedder` service (`:8003`) follows the same OpenAI-compatible pattern as `
 - [ ] Confirm whether `/query` + `rag_pipeline.py` (legacy pipeline) can be deleted, or is still needed.
 - [ ] Restrict CORS (`app/main.py`) before production.
 - [ ] Confirm GPU VRAM budget: 32B AWQ chat model + embedding model + reranker all resident at once, each with its own `GPU_MEM_UTIL` fraction.
+# test
