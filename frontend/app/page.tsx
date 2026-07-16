@@ -24,12 +24,13 @@ export default function LandingPage() {
   const router = useRouter();
   const { token, login, ready } = useAuth();
 
-  const [scrolled,    setScrolled]    = useState(false);
-  const [heroVisible, setHeroVisible] = useState(false);
-  const [question,    setQuestion]    = useState("");
-  const [country,     setCountry]     = useState(COUNTRIES[0].id);
-  const [sending,     setSending]     = useState(false);
-  const [modal,       setModal]       = useState<ModalMode>(null);
+  const [scrolled,     setScrolled]     = useState(false);
+  const [heroVisible,  setHeroVisible]  = useState(false);
+  const [question,     setQuestion]     = useState("");
+  const [country,      setCountry]      = useState(COUNTRIES[0].id);
+  const [sending,      setSending]      = useState(false);
+  const [modal,        setModal]        = useState<ModalMode>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setHeroVisible(true), 40);
@@ -90,17 +91,55 @@ export default function LandingPage() {
       <header className={`nav ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-inner">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Logo size={30} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>
+            <Logo size={28} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)" }}>
               PolicySense
             </span>
           </div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 24 }}>
+
+          {/* Desktop nav */}
+          <nav className="nav-desktop">
             <button onClick={() => router.push("/chat")}    className="nav-link nav-link-btn">Continue as guest</button>
             <button onClick={() => setModal("signin")}      className="nav-link nav-link-btn">Sign in</button>
             <button onClick={() => setModal("signup")}      className="btn-primary btn-sm">Create account</button>
           </nav>
+
+          {/* Mobile hamburger */}
+          <button
+            className="nav-hamburger"
+            onClick={() => setMobileMenuOpen(v => !v)}
+            aria-label="Menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            <span className={`ham-line ${mobileMenuOpen ? "ham-open-1" : ""}`} />
+            <span className={`ham-line ${mobileMenuOpen ? "ham-open-2" : ""}`} />
+            <span className={`ham-line ${mobileMenuOpen ? "ham-open-3" : ""}`} />
+          </button>
         </div>
+
+        {/* Mobile dropdown */}
+        {mobileMenuOpen && (
+          <div className="mobile-menu">
+            <button
+              onClick={() => { router.push("/chat"); setMobileMenuOpen(false); }}
+              className="mobile-menu-item"
+            >
+              Continue as guest
+            </button>
+            <button
+              onClick={() => { setModal("signin"); setMobileMenuOpen(false); }}
+              className="mobile-menu-item"
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => { setModal("signup"); setMobileMenuOpen(false); }}
+              className="mobile-menu-item mobile-menu-item-primary"
+            >
+              Create account
+            </button>
+          </div>
+        )}
       </header>
 
       {/* ── Hero (fills remaining height, content centred) ────────────── */}
@@ -401,14 +440,91 @@ export default function LandingPage() {
         }
         .footer-sep { opacity: 0.45; }
 
+        /* ── Hamburger ────────────────────────────────────── */
+        .nav-hamburger {
+          display: none;
+          flex-direction: column;
+          justify-content: center;
+          gap: 5px;
+          width: 36px;
+          height: 36px;
+          padding: 6px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          border-radius: 8px;
+        }
+        .nav-hamburger:hover { background: var(--sidebar-hover); }
+        .ham-line {
+          display: block;
+          width: 100%;
+          height: 2px;
+          background: var(--foreground);
+          border-radius: 2px;
+          transition: transform 0.22s ease, opacity 0.22s ease;
+          transform-origin: center;
+        }
+        .ham-open-1 { transform: translateY(7px) rotate(45deg); }
+        .ham-open-2 { opacity: 0; transform: scaleX(0); }
+        .ham-open-3 { transform: translateY(-7px) rotate(-45deg); }
+
+        /* ── Mobile dropdown menu ─────────────────────────── */
+        .mobile-menu {
+          display: flex;
+          flex-direction: column;
+          border-top: 1px solid var(--sidebar-border);
+          background: rgba(255,255,255,0.96);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          animation: slideDown 0.18s ease;
+        }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .mobile-menu-item {
+          width: 100%;
+          padding: 15px 24px;
+          border: none;
+          background: transparent;
+          font-family: inherit;
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--foreground);
+          text-align: left;
+          cursor: pointer;
+          border-bottom: 1px solid var(--sidebar-border);
+          transition: background 0.15s;
+        }
+        .mobile-menu-item:last-child { border-bottom: none; }
+        .mobile-menu-item:hover { background: var(--primary-soft); }
+        .mobile-menu-item-primary {
+          color: var(--primary);
+        }
+
         /* ── Responsive ───────────────────────────────────── */
-        @media (max-width: 860px) {
-          .hero { padding: 40px 20px 28px; }
+        .nav-desktop { display: flex; align-items: center; gap: 24px; }
+
+        @media (max-width: 640px) {
+          .nav-inner { padding: 12px 20px; }
+          .nav-desktop { display: none; }
+          .nav-hamburger { display: flex; }
+          .hero { padding: 32px 18px 24px; }
+          .hero-title { font-size: 28px; }
+          .hero-sub { font-size: 14.5px; margin-bottom: 28px; }
+          .capsule-segment { padding: 9px 16px; font-size: 13px; }
+          .country-flag { font-size: 15px; }
+          .country-abbr { font-size: 13px; }
+          .input-zone { padding: 14px 14px 10px; border-radius: 18px; }
+          .input-hint { font-size: 11px; }
+          .footer { padding: 12px 18px; font-size: 11px; }
+        }
+        @media (max-width: 860px) and (min-width: 641px) {
+          .hero { padding: 40px 24px 28px; }
           .hero-title { font-size: 34px; }
-          .nav-link  { display: none; }
-          .country-pill { padding: 9px 16px; }
-          .country-flag { font-size: 16px; }
-          .country-name { font-size: 14px; }
+          .nav-desktop { display: none; }
+          .nav-hamburger { display: flex; }
+          .nav-inner { padding: 13px 24px; }
         }
         @media (prefers-reduced-motion: reduce) {
           .hero-copy { transition: none !important; opacity: 1 !important; transform: none !important; }

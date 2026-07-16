@@ -130,8 +130,8 @@ export default function InputBar({
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          gap: 10,
+          alignItems: "flex-end",
+          gap: 8,
           background: "var(--input-bg)",
           border: "1px solid var(--input-border)",
           borderRadius: "26px",
@@ -161,8 +161,8 @@ export default function InputBar({
           disabled={uploadDisabled}
           title={uploadDisabled ? uploadDisabledReason : "Attach document"}
           style={{
-            width: "36px",
-            height: "36px",
+            width: "32px",
+            height: "32px",
             borderRadius: "50%",
             border: "none",
             background: "transparent",
@@ -173,6 +173,7 @@ export default function InputBar({
             color: "var(--placeholder-text)",
             opacity: uploadDisabled ? 0.4 : 1,
             flexShrink: 0,
+            marginBottom: "2px",
           }}
         >
           <Paperclip size={18} />
@@ -287,8 +288,8 @@ export default function InputBar({
           onClick={toggleRecording}
           title={recording ? "Stop recording" : "Voice input"}
           style={{
-            width: "36px",
-            height: "36px",
+            width: "32px",
+            height: "32px",
             borderRadius: "50%",
             border: "none",
             background: recording ? "#ef4444" : "transparent",
@@ -299,9 +300,10 @@ export default function InputBar({
             color: recording ? "#fff" : "var(--placeholder-text)",
             flexShrink: 0,
             transition: "background 0.15s",
+            marginBottom: "2px",
           }}
         >
-          {recording ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}
+          {recording ? <Square size={15} fill="currentColor" /> : <Mic size={17} />}
         </button>
 
         <button
@@ -309,8 +311,8 @@ export default function InputBar({
           disabled={!canSend}
           title="Send"
           style={{
-            width: "36px",
-            height: "36px",
+            width: "32px",
+            height: "32px",
             borderRadius: "50%",
             border: "none",
             background: canSend ? "var(--send-btn-bg)" : "#e3ece0",
@@ -321,6 +323,7 @@ export default function InputBar({
             color: canSend ? "var(--send-btn-text)" : "#9db296",
             flexShrink: 0,
             transition: "all 0.15s",
+            marginBottom: "2px",
           }}
         >
           <ArrowUp size={18} strokeWidth={2.4} />

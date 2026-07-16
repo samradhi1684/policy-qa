@@ -83,7 +83,9 @@ export default function Home() {
   }, [chatDocuments]);
 
   const [loading, setLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const [selectedModel, setSelectedModel] = useState(DEFAULT_COUNTRY);
 
   const [chats, setChats] = useState<Chat[]>([]);
