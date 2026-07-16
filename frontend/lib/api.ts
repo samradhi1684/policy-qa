@@ -122,7 +122,6 @@ export async function queryInChat(
 ): Promise<{
   answer: string;
   sources: Source[];
-  web_sources?: WebSource[];
 
   download_url?: string;
   download_type?: string;

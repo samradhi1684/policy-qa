@@ -171,9 +171,8 @@ export default function LandingPage() {
 
       {/* ── Footer — pinned to bottom of the page ─────────────────────── */}
       <footer className="footer">
-        <span>PolicySense is an informational tool only. Always verify with official sources before taking action.</span>
-        <span className="footer-sep">·</span>
-        <span>© 2026 PolicySense. All rights reserved.</span>
+        <span>PolicySense is an informational tool only. Always verify with official sources before taking action.·
+        © 2026 PolicySense. All rights reserved. </span>
       </footer>
 
       {/* ── Auth Modal ────────────────────────────────────────────────── */}

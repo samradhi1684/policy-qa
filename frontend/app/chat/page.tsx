@@ -8,6 +8,7 @@ import Sidebar from "../../components/sideBar";
 import EmptyState from "../../components/emptyState";
 import SourcePane from "../../components/sourcePane";
 import BackButton from "../../components/backButton";
+import AuthModal, { type AuthModalMode } from "../../components/authModal";
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -87,6 +88,8 @@ export default function Home() {
 
   const [sourcePaneSources, setSourcePaneSources] = useState<Source[] | null>(null);
   const [sourcePaneIndex, setSourcePaneIndex] = useState(0);
+
+  const [authModal, setAuthModal] = useState<AuthModalMode>(null);
 
   const countryRef = useRef(selectedModel);
   countryRef.current = selectedModel;
@@ -448,6 +451,7 @@ export default function Home() {
         onPinChat={handlePinChat}
         selectedModel={selectedModel}
         onModelChange={handleModelChange}
+        onOpenAuthModal={setAuthModal}
       />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
@@ -463,7 +467,10 @@ export default function Home() {
               borderRadius: 999, padding: "4px 12px",
             }}>
               Guest mode · chats aren't saved ·{" "}
-              <a href="/signin" style={{ color: "var(--primary)", textDecoration: "none" }}>Sign in</a>
+              <button
+                onClick={() => setAuthModal("signin")}
+                style={{ color: "var(--primary)", textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "inherit", fontWeight: 600 }}
+              >Sign in</button>
             </span>
           )}
 
@@ -513,6 +520,18 @@ export default function Home() {
           activeIndex={sourcePaneIndex}
           onSelectSource={setSourcePaneIndex}
           onClose={() => setSourcePaneSources(null)}
+        />
+      )}
+
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          onSwitchMode={setAuthModal}
+          onClose={() => setAuthModal(null)}
+          onSuccess={() => {
+            setAuthModal(null);
+            window.location.reload();
+          }}
         />
       )}
     </div>

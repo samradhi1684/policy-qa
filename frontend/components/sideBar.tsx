@@ -33,6 +33,7 @@ type Props = {
   onPinChat: (id: string, pinned: boolean) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
+  onOpenAuthModal?: (mode: "signup" | "signin") => void;
 };
 
 type MenuState = { chatId: string; x: number; y: number } | null;
@@ -49,6 +50,7 @@ export default function Sidebar({
   onPinChat,
   selectedModel,
   onModelChange,
+  onOpenAuthModal,
 }: Props) {
   const { user, token, logout } = useAuth();
   const isGuest = !token;
@@ -413,18 +415,24 @@ export default function Sidebar({
                 <br />
                 Chat history, renaming, search and document uploads are only
                 available with an account.
-                <a
-                  href="/"
+                <button
+                  onClick={() => onOpenAuthModal?.("signin")}
                   style={{
                     display: "block",
                     marginTop: 10,
                     color: "var(--primary)",
                     fontWeight: 700,
                     textDecoration: "none",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    fontSize: "inherit",
+                    textAlign: "left",
                   }}
                 >
                   Sign in to save your chats →
-                </a>
+                </button>
               </div>
             ) : filteredChats.length === 0 ? (
               <p
@@ -565,7 +573,7 @@ export default function Sidebar({
             
             {isGuest ? (
               <button
-                onClick={() => window.location.href = "/"}
+                onClick={() => onOpenAuthModal?.("signup")}
                 style={{
                   width: "100%",
                   marginTop: "6px",
