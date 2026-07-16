@@ -315,6 +315,13 @@ export default function Home() {
 
       if ((currentQuestion.trim() === "" && !selectedFile) || loading) return;
 
+      // If the user attached a file but typed nothing, default to a summary
+      // request so the backend always gets a meaningful query to embed against.
+      const effectiveQuestion =
+        currentQuestion.trim() === "" && selectedFile
+          ? "Please summarize this document."
+          : currentQuestion;
+
       setQuestion("");
       setLoading(true);
       setSourcePaneSources(null);
@@ -336,17 +343,24 @@ export default function Home() {
         }
       }
 
+      // Whether this chat already had docs before this turn
+      const alreadyHasDocs = chatDocuments.length > 0;
+
       if (fileToUpload && token && chatId && chatId !== "guest") {
         setUploadProgress(0);
         try {
           const doc = await uploadChatDocument(chatId, fileToUpload, setUploadProgress);
           setChatDocuments((prev) => [...prev, doc]);
         } catch {
-          // non-fatal
+          // non-fatal — proceed without doc context
         } finally {
           setUploadProgress(null);
         }
       }
+
+      // Signal to the backend that uploaded-document retrieval should be used.
+      // True when a doc was just uploaded this turn OR the chat already has docs.
+      const hasDocument = !!(fileToUpload && token && chatId !== "guest") || alreadyHasDocs;
 
       const priorHistory = activeMessages
         .filter((m: any) => !m.thinking && typeof m.content === "string" && m.content.trim() !== "")
@@ -356,7 +370,7 @@ export default function Home() {
         ...prev,
         {
           role: "user",
-          content: currentQuestion,
+          content: effectiveQuestion,
           file: fileToUpload?.name,
           created_at: new Date().toISOString(),
         },
@@ -375,7 +389,7 @@ export default function Home() {
       try {
         await queryInChatStream(
           chatId,
-          currentQuestion,
+          effectiveQuestion,
           countryRef.current,
           {
             onThinking: () => {},
@@ -402,6 +416,7 @@ export default function Home() {
               });
             },
           },
+          hasDocument,
           priorHistory
         );
 

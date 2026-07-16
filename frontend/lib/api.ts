@@ -122,6 +122,7 @@ export async function queryInChat(
 ): Promise<{
   answer: string;
   sources: Source[];
+  web_sources?: WebSource[];
 
   download_url?: string;
   download_type?: string;
@@ -380,6 +381,7 @@ export async function queryInChatStream(
     }) => void;
     onError?: (err: unknown) => void;
   },
+  hasDocument?: boolean,
   history?: { role: string; content: string }[]
 ): Promise<void> {
 
@@ -388,6 +390,14 @@ export async function queryInChatStream(
   const formData = new FormData();
   formData.append("question", question);
   formData.append("country", country);
+
+  // Tell the backend to prioritise uploaded-document retrieval for this query.
+  // The backend pipeline already checks the DB for uploads, but this flag lets
+  // it skip the router's "general"/"out_of_scope" fast-path for questions that
+  // look vague but are actually about an attached file ("summarize it", etc.).
+  if (hasDocument) {
+    formData.append("has_document", "true");
+  }
 
   // Guests have no DB-backed chat/messages row on the backend, so without
   // this the router/planner never see prior turns and follow-ups like

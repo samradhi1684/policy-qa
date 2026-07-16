@@ -1181,6 +1181,7 @@ class Pipeline:
         chat_history=None,
         chat_id: Optional[str] = None,
         country: Optional[str] = None,
+        has_document: bool = False,
     ):
         """
         Performs routing + (for domain messages) reference resolution and
@@ -1202,13 +1203,25 @@ class Pipeline:
             chat_id,
         )
 
+        # If the frontend signals that uploaded documents are present, never
+        # short-circuit — always run document retrieval regardless of how the
+        # router classified the question (e.g. vague "summarize it" questions
+        # would otherwise short-circuit as "general").
+        if has_document and short_circuit is not None:
+            short_circuit = None
+            resolved_query = question  # use the raw question for doc embedding
+
         if short_circuit is not None:
             return None, [], short_circuit
 
+        # When has_document is True, ensure _session_chunks is called even if
+        # resolved_query is vague — pass the original question as a fallback
+        # so the embedding has the best chance of matching uploaded chunks.
+        session_query = resolved_query if resolved_query.strip() else question
         result = self.run(
-            query=resolved_query,
+            query=session_query,
             generate_answer=False,
-            extra_chunks=self._session_chunks(resolved_query, chat_id),
+            extra_chunks=self._session_chunks(session_query, chat_id),
         )
 
         citations = result.get("citations", [])

@@ -398,6 +398,7 @@ async def query_in_chat_stream(
     web_search: bool = Form(False),
     country: str = Form("dsire"),
     client_history: str | None = Form(None),
+    has_document: bool = Form(False),
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -475,6 +476,7 @@ async def query_in_chat_stream(
             history,
             chat_id if current_user else None,
             country,
+            has_document,
         )
 
         if fallback is not None:
