@@ -3,6 +3,11 @@
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+// Imported so the back button can wipe the guest session on intentional exit.
+// When a guest clicks Back they are consciously leaving — the next time they
+// hit "Continue as guest" should be a clean slate.
+import { clearGuestSession } from "../app/chat/page";
+
 type Props = {
   /** Where to navigate. Defaults to "/" (landing page). */
   fallbackHref?: string;
@@ -17,6 +22,9 @@ type Props = {
  * Using replace() keeps the landing page as the single entry in history
  * rather than stacking a duplicate, which also means pressing the browser
  * Back button from the landing page exits cleanly.
+ *
+ * Also clears any saved guest session so that returning via "Continue as
+ * guest" always starts fresh rather than restoring the previous conversation.
  */
 export default function BackButton({
   fallbackHref = "/",
@@ -26,6 +34,7 @@ export default function BackButton({
   const router = useRouter();
 
   function handleBack() {
+    clearGuestSession();
     router.replace(fallbackHref);
   }
 
