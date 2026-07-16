@@ -227,12 +227,22 @@ export default function Home() {
       getMessages(id),
       listChatDocuments(id).catch(() => [] as ChatDocument[]),
     ]);
+    // Restore the file chip on the first user message that triggered a doc upload.
+    // The backend doesn't persist the original filename on the message row, so we
+    // derive it from the chat's document list (the name of the first document).
+    const firstDocName = docs.length > 0 ? docs[0].name : undefined;
+    let fileAttached = false;
     setActiveMessages(
-      messages.map((m: any) => ({
-        role: m.role,
-        content: m.content,
-        created_at: m.created_at,
-      }))
+      messages.map((m: any) => {
+        const isFirstUserMsg = !fileAttached && m.role === "user" && firstDocName;
+        if (isFirstUserMsg) fileAttached = true;
+        return {
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+          ...(isFirstUserMsg ? { file: firstDocName } : {}),
+        };
+      })
     );
     setChatDocuments(docs);
     console.log("Loaded docs:", docs);
