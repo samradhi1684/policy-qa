@@ -157,73 +157,75 @@ export default function EmptyState({
       )}
 
       {/* Suggestion chips — grouped by topic, keyed by country */}
-      <div
-        key={selectedModel}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px",
-          marginTop: "12px",
-          maxWidth: "620px",
-          width: "100%",
-        }}
-      >
-        {config.groups.map((group) => {
-          const isGreen = group.color === "green";
-          const chipBg     = isGreen ? "var(--primary-soft)"       : "var(--accent-purple-soft)";
-          const chipBorder = isGreen ? "var(--primary-soft-border)" : "var(--accent-purple-border)";
-          const chipColor  = isGreen ? "#3e6a49"                   : "var(--accent-purple-text)";
-          const chipHoverBg     = isGreen ? "#dcefd8" : "#e4daf5";
-          const chipHoverBorder = isGreen ? "#9ec89a" : "#b5a0e0";
-          const labelColor = isGreen ? "#3e6a49" : "var(--accent-purple-text)";
+            <div
+              key={selectedModel}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+                marginTop: "12px",
+                maxWidth: "620px",
+                width: "100%",
+                alignItems: "center",  // ← center the whole column
+              }}
+            >
+              {config.groups.map((group) => {
+                const isGreen = group.color === "green";
+                const chipBg     = isGreen ? "var(--primary-soft)"       : "var(--accent-purple-soft)";
+                const chipBorder = isGreen ? "var(--primary-soft-border)" : "var(--accent-purple-border)";
+                const chipColor  = isGreen ? "#3e6a49"                   : "var(--accent-purple-text)";
+                const chipHoverBg     = isGreen ? "#dcefd8" : "#e4daf5";
+                const chipHoverBorder = isGreen ? "#9ec89a" : "#b5a0e0";
+                const labelColor = isGreen ? "#3e6a49" : "var(--accent-purple-text)";
 
-          return (
-            <div key={group.label}>
-              <p style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: labelColor,
-                margin: "0 0 8px 2px",
-              }}>
-                {group.label}
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {group.questions.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => onQuestionClick(q)}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "20px",
-                      border: `1px solid ${chipBorder}`,
-                      background: chipBg,
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: chipColor,
-                      transition: "border-color 0.15s, background 0.15s",
-                      textAlign: "left",
-                      lineHeight: "1.4",
-                      fontFamily: "inherit",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = chipHoverBg;
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = chipHoverBorder;
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = chipBg;
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = chipBorder;
-                    }}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
+                return (
+                  <div key={group.label} style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>  {/* ← center label + chips */}
+                    <p style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: labelColor,
+                      margin: "0 0 8px 2px",
+                      textAlign: "center",  // ← center label text
+                    }}>
+                      {group.label}
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>  {/* ← center chips row */}
+                      {group.questions.slice(0, 2).map((q) => (  // ← enforce max 2
+                        <button
+                          key={q}
+                          onClick={() => onQuestionClick(q)}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: "20px",
+                            border: `1px solid ${chipBorder}`,
+                            background: chipBg,
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: chipColor,
+                            transition: "border-color 0.15s, background 0.15s",
+                            textAlign: "center",  // ← center chip text
+                            lineHeight: "1.4",
+                            fontFamily: "inherit",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLButtonElement).style.background = chipHoverBg;
+                            (e.currentTarget as HTMLButtonElement).style.borderColor = chipHoverBorder;
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLButtonElement).style.background = chipBg;
+                            (e.currentTarget as HTMLButtonElement).style.borderColor = chipBorder;
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
