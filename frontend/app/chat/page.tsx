@@ -9,6 +9,7 @@ import EmptyState from "../../components/emptyState";
 import SourcePane from "../../components/sourcePane";
 import BackButton from "../../components/backButton";
 import AuthModal, { type AuthModalMode } from "../../components/authModal";
+import { PanelLeft } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -502,7 +503,25 @@ export default function Home() {
       />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px 6px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px 6px", flexShrink: 0 }}>
+          {/* Sidebar toggle — always in the header so it never overlaps BackButton */}
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "34px", height: "34px", borderRadius: "9px",
+              border: "1px solid var(--sidebar-border)",
+              background: "var(--background)",
+              color: "var(--foreground)", cursor: "pointer",
+              flexShrink: 0,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--sidebar-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "var(--background)")}
+          >
+            <PanelLeft size={17} />
+          </button>
           <BackButton fallbackHref="/" />
 
           {isGuest && (

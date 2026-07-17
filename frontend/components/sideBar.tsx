@@ -614,32 +614,7 @@ export default function Sidebar({
         </div>
       </aside>
 
-      {/* Expand button shown when sidebar is closed */}
-      {!isOpen && (
-        <button
-          onClick={onToggle}
-          title="Open sidebar"
-          style={{
-            position: "fixed",
-            left: "12px",
-            top: "12px",
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "36px",
-            height: "36px",
-            borderRadius: "10px",
-            border: "1px solid var(--sidebar-border)",
-            background: "var(--sidebar-bg)",
-            color: "var(--foreground)",
-            cursor: "pointer",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <PanelLeft size={18} />
-        </button>
-      )}
+      {/* Expand button is rendered in the chat header, not here */}
 
       {/* Context menu */}
       {menu && (
