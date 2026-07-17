@@ -85,7 +85,7 @@ export default function SourcePane({
     return titles[s.document_id] ?? "Loading title…";
   }
 
-  const [panelWidth, setPanelWidth] = useState(520);
+  const [panelWidth, setPanelWidth] = useState(680);
 
   const resizing = useRef(false);
 
@@ -245,7 +245,7 @@ export default function SourcePane({
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
       }}
-      onDoubleClick={() => setPanelWidth(520)}
+      onDoubleClick={() => setPanelWidth(680)}
       style={{
         position: "absolute",
         left: -5,
@@ -484,6 +484,38 @@ export default function SourcePane({
                     </>
                   ) : (
                     <div onClick={(e) => e.stopPropagation()}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFullDocOpen((prev) => ({
+                              ...prev,
+                              [src.chunk_id]: false,
+                            }));
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "5px 12px",
+                            borderRadius: 10,
+                            border: "1px solid var(--sidebar-border)",
+                            background: "#fff",
+                            color: "var(--placeholder-text)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <X size={13} /> Close document
+                        </button>
+                      </div>
                       <DocumentViewer
                         markdown={
                           documents[src.document_id] ??
