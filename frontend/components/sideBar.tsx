@@ -497,7 +497,7 @@ export default function Sidebar({
               marginTop: "8px",
             }}
           >
-            <button
+            <div
               style={{
                 width: "100%",
                 display: "flex",
@@ -507,16 +507,7 @@ export default function Sidebar({
                 borderRadius: "10px",
                 border: "none",
                 background: "transparent",
-                cursor: "pointer",
               }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background =
-                  "var(--sidebar-hover)")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background =
-                  "transparent")
-              }
             >
               <div
                 style={{
@@ -568,7 +559,7 @@ export default function Sidebar({
                   {user?.email}
                 </span>
               </div>
-            </button>
+            </div>
 
             
             {isGuest ? (
