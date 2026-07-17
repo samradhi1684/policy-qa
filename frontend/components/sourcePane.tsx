@@ -385,22 +385,7 @@ export default function SourcePane({
                     
                   </div>
 
-                  {description && (
-                    <div
-                      style={{
-                        fontSize: 12.5,
-                        color: "var(--placeholder-text)",
-                        marginTop: 4,
-                        lineHeight: 1.5,
-                        display: "-webkit-box",
-                        WebkitLineClamp: isExpanded ? undefined : 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: isExpanded ? "visible" : "hidden",
-                      }}
-                    >
-                      {description}
-                    </div>
-                  )}
+                
                 </div>
 
                 {isWeb ? (
