@@ -378,14 +378,14 @@ export default function MessageBubble({
             </button>
           )}
 
-          {sources && sources.length > 0 && (
+          {sources && sources.filter(s => s.used).length > 0 && (
             <button
               onClick={() => onSourceClick?.(sources, 0)}
               title="Sources"
               style={iconBtn}
             >
               <Database size={15} />
-              Sources ({sources.length})
+              Sources ({sources.filter(s => s.used).length})
             </button>
           )}
 

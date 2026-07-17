@@ -617,24 +617,37 @@ def _split_sentences(text: str) -> List[str]:
 def _locate_span(chunk_text: str, sentence: str) -> Optional[Tuple[int, int]]:
     """Find the (start, end) character offset of `sentence` inside
     `chunk_text`. Tries an exact case-insensitive match first, then falls
-    back to a fuzzy sliding-window match for minor LLM paraphrasing/whitespace
-    differences."""
-    start = chunk_text.lower().find(sentence.lower())
+    back to a fuzzy sliding-window match for minor whitespace differences.
+
+    Key fix: the fuzzy pass now finds the BEST scoring window across the
+    entire chunk (not the first window that exceeds the threshold) and
+    raises the threshold to 85 to avoid loose matches that caused large
+    irrelevant spans to be highlighted."""
+    sent_lower = sentence.lower().strip()
+    chunk_lower = chunk_text.lower()
+
+    # 1. Exact match (fastest path)
+    start = chunk_lower.find(sent_lower)
     if start != -1:
         return start, start + len(sentence)
 
+    # 2. Fuzzy sliding-window — find the BEST scoring position, not the first
+    sent_len = len(sentence)
+    window_size = sent_len + 20  # small overrun to absorb whitespace diffs
     best_score = 0
     best_start = -1
-    sent_len = len(sentence)
-    for i in range(len(chunk_text)):
-        window = chunk_text[i:i + sent_len + 30]
-        score = fuzz.partial_ratio(sentence.lower(), window.lower())
+
+    step = max(1, sent_len // 4)  # stride to keep it fast on long chunks
+    for i in range(0, max(1, len(chunk_text) - sent_len + 1), step):
+        window = chunk_lower[i:i + window_size]
+        score = fuzz.ratio(sent_lower, window)  # ratio not partial_ratio for tighter match
         if score > best_score:
             best_score = score
             best_start = i
 
-    if best_score >= 75 and best_start != -1:
-        return best_start, best_start + sent_len
+    # Higher threshold (85 vs 75) to avoid spurious matches
+    if best_score >= 85 and best_start != -1:
+        return best_start, min(best_start + sent_len, len(chunk_text))
 
     return None
 
@@ -1102,10 +1115,10 @@ Evidence:
 
 Task: Return ONLY the sentence IDs that contain the direct factual answer to the question.
 Rules:
-- Select the MINIMUM number of sentences needed — do not include context, headings, or surrounding text
-- Exclude sentences that are headings, labels, or metadata (e.g. lines starting with #)
-- Exclude sentences that are only loosely related — only sentences with specific facts that directly answer the question
-- Output ONLY a JSON array of strings, no explanation, e.g. ["S2","S5"]
+- Select the MINIMUM number of sentences needed
+- Exclude headings, labels, or metadata (lines starting with #)
+- Only include sentences with specific facts that directly answer the question
+- Output ONLY a JSON array of strings, e.g. ["S2","S5"]
 
 Answer:""".strip()
 
