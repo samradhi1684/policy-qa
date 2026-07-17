@@ -785,6 +785,8 @@ function ChatRow({
           : hovered
           ? "var(--sidebar-hover)"
           : "transparent",
+        borderLeft: isActive ? "3px solid var(--primary)" : "3px solid transparent",
+        paddingLeft: isActive ? 0 : 0,
       }}
     >
       <button

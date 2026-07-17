@@ -4,12 +4,18 @@ type Props = {
   isGuest?: boolean;
 };
 
+type SuggestionGroup = {
+  label: string;
+  color: "green" | "purple";
+  questions: string[];
+};
+
 type CountryConfig = {
   badge: string;
   flag: string;
   headline: string;
   subtitle: string;
-  suggestions: string[];
+  groups: SuggestionGroup[];
 };
 
 /**
@@ -24,11 +30,24 @@ const COUNTRY_CONFIG: Record<string, CountryConfig> = {
     headline: "Renewable Energy Policy Assistant",
     subtitle:
       "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across the United States.",
-    suggestions: [
-      "How is funding distributed for the Charge at Work program?",
-      "Where are Park & Plug chargers installed?",
-      "Explain the VW Mitigation Program",
-      "When are Indiana off-peak charging hours?",
+    groups: [
+      {
+        label: "Incentives & funding",
+        color: "green",
+        questions: [
+          "How is funding distributed for the Charge at Work program?",
+          "What solar tax credits are available in New York?",
+        ],
+      },
+      {
+        label: "Programs & regulations",
+        color: "purple",
+        questions: [
+          "Where are Park & Plug chargers installed?",
+          "Explain the VW Mitigation Program",
+          "When are Indiana off-peak charging hours?",
+        ],
+      },
     ],
   },
   mnre: {
@@ -37,11 +56,23 @@ const COUNTRY_CONFIG: Record<string, CountryConfig> = {
     headline: "Renewable Energy Policy Assistant",
     subtitle:
       "Explore federal and state renewable energy incentives, tax credits, regulations, and programs across India.",
-    suggestions: [
-      "What are the benefits under PM Surya Ghar Yojana?",
-      "Explain the rooftop solar subsidy structure",
-      "What is the PM-KUSUM scheme for farmers?",
-      "What are India's renewable energy targets for 2030?",
+    groups: [
+      {
+        label: "Subsidies & schemes",
+        color: "green",
+        questions: [
+          "What are the benefits under PM Surya Ghar Yojana?",
+          "Explain the rooftop solar subsidy structure",
+        ],
+      },
+      {
+        label: "Targets & programs",
+        color: "purple",
+        questions: [
+          "What is the PM-KUSUM scheme for farmers?",
+          "What are India's renewable energy targets for 2030?",
+        ],
+      },
     ],
   },
 };
@@ -125,50 +156,73 @@ export default function EmptyState({
         </div>
       )}
 
-      {/* Suggestion chips (keyed by country so they never go stale) */}
+      {/* Suggestion chips — grouped by topic, keyed by country */}
       <div
         key={selectedModel}
         style={{
           display: "flex",
-          flexWrap: "wrap",
-          gap: "10px",
-          justifyContent: "center",
+          flexDirection: "column",
+          gap: "16px",
           marginTop: "12px",
-          maxWidth: "600px",
+          maxWidth: "620px",
+          width: "100%",
         }}
       >
-        {config.suggestions.map((q) => (
-          <button
-            key={q}
-            onClick={() => onQuestionClick(q)}
-            style={{
-              padding: "10px 16px",
-              borderRadius: "12px",
-              border: "1px solid var(--sidebar-border)",
-              background: "var(--background)",
-              cursor: "pointer",
-              fontSize: "13px",
-              color: "var(--foreground)",
-              transition: "border-color 0.15s, background 0.15s",
-              textAlign: "left",
-              lineHeight: "1.4",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor =
-                "var(--primary)";
-              (e.currentTarget as HTMLButtonElement).style.background =
-                "var(--primary-soft)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor =
-                "var(--sidebar-border)";
-              (e.currentTarget as HTMLButtonElement).style.background =
-                "var(--background)";
-            }}
-          >
-            {q}
-          </button>
-        ))}
+        {config.groups.map((group) => {
+          const isGreen = group.color === "green";
+          const chipBg     = isGreen ? "var(--primary-soft)"       : "var(--accent-purple-soft)";
+          const chipBorder = isGreen ? "var(--primary-soft-border)" : "var(--accent-purple-border)";
+          const chipColor  = isGreen ? "#3e6a49"                   : "var(--accent-purple-text)";
+          const chipHoverBg     = isGreen ? "#dcefd8" : "#e4daf5";
+          const chipHoverBorder = isGreen ? "#9ec89a" : "#b5a0e0";
+          const labelColor = isGreen ? "#3e6a49" : "var(--accent-purple-text)";
+
+          return (
+            <div key={group.label}>
+              <p style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: labelColor,
+                margin: "0 0 8px 2px",
+              }}>
+                {group.label}
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {group.questions.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => onQuestionClick(q)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "20px",
+                      border: `1px solid ${chipBorder}`,
+                      background: chipBg,
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: chipColor,
+                      transition: "border-color 0.15s, background 0.15s",
+                      textAlign: "left",
+                      lineHeight: "1.4",
+                      fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = chipHoverBg;
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = chipHoverBorder;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = chipBg;
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = chipBorder;
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

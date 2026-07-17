@@ -170,8 +170,8 @@ export default function InputBar({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "var(--placeholder-text)",
-            opacity: uploadDisabled ? 0.4 : 1,
+            color: "#7d8a78",
+            opacity: uploadDisabled ? 0.35 : 0.75,
             flexShrink: 0,
             marginBottom: "2px",
           }}
@@ -262,6 +262,9 @@ export default function InputBar({
           )
         )}
 
+        <style>{`
+          .ps-textarea::placeholder { color: #b0bba9; }
+        `}</style>
         <textarea
           ref={textareaRef}
           value={value}
@@ -269,6 +272,7 @@ export default function InputBar({
           onKeyDown={handleKeyDown}
           placeholder="Ask about renewable energy policy..."
           rows={1}
+          className="ps-textarea"
           style={{
             flex: 1,
             resize: "none",
@@ -297,7 +301,8 @@ export default function InputBar({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: recording ? "#fff" : "var(--placeholder-text)",
+            color: recording ? "#fff" : "#7d8a78",
+            opacity: recording ? 1 : 0.75,
             flexShrink: 0,
             transition: "background 0.15s",
             marginBottom: "2px",
@@ -315,12 +320,12 @@ export default function InputBar({
             height: "32px",
             borderRadius: "50%",
             border: "none",
-            background: canSend ? "var(--send-btn-bg)" : "#e3ece0",
+            background: canSend ? "var(--send-btn-bg)" : "var(--send-btn-disabled-bg)",
             cursor: canSend ? "pointer" : "not-allowed",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: canSend ? "var(--send-btn-text)" : "#9db296",
+            color: canSend ? "var(--send-btn-text)" : "var(--send-btn-disabled-text)",
             flexShrink: 0,
             transition: "all 0.15s",
             marginBottom: "2px",

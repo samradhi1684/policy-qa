@@ -99,9 +99,9 @@ export default function LandingPage() {
 
           {/* Desktop nav */}
           <nav className="nav-desktop">
-            <button onClick={() => router.push("/chat")}    className="nav-link nav-link-btn">Continue as guest</button>
-            <button onClick={() => setModal("signin")}      className="nav-link nav-link-btn">Sign in</button>
-            <button onClick={() => setModal("signup")}      className="btn-primary btn-sm">Create account</button>
+            <button onClick={() => router.push("/chat")} className="nav-ghost-text">Continue as guest</button>
+            <button onClick={() => setModal("signin")}   className="nav-outlined">Sign in</button>
+            <button onClick={() => setModal("signup")}   className="btn-primary btn-sm">Create account</button>
           </nav>
 
           {/* Mobile hamburger */}
@@ -248,7 +248,7 @@ export default function LandingPage() {
         .nav {
           flex-shrink: 0;
           position: sticky; top: 0; z-index: 40;
-          background: rgba(255,255,255,0.80);
+          background: #ffffff;
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           border-bottom: 1px solid transparent;
@@ -263,13 +263,21 @@ export default function LandingPage() {
           padding: 14px 32px;
           display: flex; align-items: center; justify-content: space-between;
         }
-        .nav-link {
-          font-size: 14px; font-weight: 600; color: var(--foreground);
-          text-decoration: none; opacity: 0.72;
-          transition: opacity 0.15s;
+        .nav-ghost-text {
+          font-size: 13.5px; font-weight: 500; color: var(--placeholder-text);
+          border: none; background: none; cursor: pointer; font-family: inherit;
+          padding: 6px 4px;
+          transition: color 0.15s;
         }
-        .nav-link-btn { border: none; background: none; cursor: pointer; font-family: inherit; }
-        .nav-link:hover { opacity: 1; }
+        .nav-ghost-text:hover { color: var(--foreground); }
+        .nav-outlined {
+          font-size: 13.5px; font-weight: 600; color: var(--foreground);
+          border: 1.5px solid var(--sidebar-border); background: transparent;
+          cursor: pointer; font-family: inherit;
+          border-radius: 999px; padding: 7px 18px;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .nav-outlined:hover { border-color: var(--primary); background: var(--primary-soft); }
 
         /* ── Buttons ──────────────────────────────────────── */
         .btn-primary {
@@ -295,6 +303,7 @@ export default function LandingPage() {
           align-items: center;
           justify-content: center;
           padding: 56px 32px 40px;
+          background: var(--hero-bg);
         }
         .hero-copy {
           width: 100%; max-width: 780px;
