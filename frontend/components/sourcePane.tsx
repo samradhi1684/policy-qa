@@ -85,7 +85,9 @@ export default function SourcePane({
     return titles[s.document_id] ?? "Loading title…";
   }
 
-  const [panelWidth, setPanelWidth] = useState(680);
+  const DEFAULT_PANEL_WIDTH = 950;
+
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
 
   const resizing = useRef(false);
 
@@ -141,8 +143,8 @@ export default function SourcePane({
 
     setPanelWidth(
       Math.max(
-        420,
-        Math.min(1100, width)
+        650,
+        Math.min(1400, width)
       )
     );
   }
@@ -245,7 +247,7 @@ export default function SourcePane({
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
       }}
-      onDoubleClick={() => setPanelWidth(680)}
+      onDoubleClick={() => setPanelWidth(DEFAULT_PANEL_WIDTH)}
       style={{
         position: "absolute",
         left: -5,
