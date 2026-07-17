@@ -1085,23 +1085,29 @@ class Pipeline:
                 top_chunks,
             )
 
-            # Run a fast citation-only LLM call so prepare_for_stream() can
-            # compute highlight_spans before streaming begins. The main answer
-            # is streamed separately; this call only needs the sentence IDs.
+            # Fast citation-only LLM call to populate highlight_spans before
+            # streaming begins. Asks for minimum necessary sentences only.
             citations = []
             if evidence_map:
                 evidence_lines = "\n".join(
                     f"  [{sid}] {ev['sentence']}"
                     for sid, ev in evidence_map.items()
                 )
-                citation_prompt = f"""Below is numbered evidence. List ONLY the sentence IDs (e.g. S0, S3) that directly answer the question. Output ONLY a JSON array of strings, nothing else.
+                citation_prompt = f"""You are a precise evidence highlighter.
 
 Question: {query}
 
 Evidence:
 {evidence_lines}
 
-Relevant sentence IDs:""".strip()
+Task: Return ONLY the sentence IDs that contain the direct factual answer to the question.
+Rules:
+- Select the MINIMUM number of sentences needed — do not include context, headings, or surrounding text
+- Exclude sentences that are headings, labels, or metadata (e.g. lines starting with #)
+- Exclude sentences that are only loosely related — only sentences with specific facts that directly answer the question
+- Output ONLY a JSON array of strings, no explanation, e.g. ["S2","S5"]
+
+Answer:""".strip()
 
                 try:
                     with Timer("run() — citation extraction LLM call"):

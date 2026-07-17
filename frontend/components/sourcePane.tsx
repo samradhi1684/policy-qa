@@ -336,7 +336,7 @@ export default function SourcePane({
           const globalIndex = sources.indexOf(src);
           const isWeb = Boolean((src as any).is_web);
           const isExpanded = expandedIndex === globalIndex;
-          const description = isWeb ? src.chunk_text : src.evidence;
+          const description = isWeb ? src.chunk_text : cleanChunkText(src.evidence || src.chunk_text);
 
           return (
             <div
@@ -453,7 +453,7 @@ export default function SourcePane({
                         }}
                         dangerouslySetInnerHTML={{
                           __html: buildHighlightedChunk(
-                            src.chunk_text,
+                            cleanChunkText(src.chunk_text),
                             src.highlight_spans || []
                           ),
                         }}
@@ -738,21 +738,24 @@ function buildHighlightedChunk(
 
   for (const h of merged) {
     result += escapeHtml(chunkText.slice(current, h.start));
-    result += `
-      <mark style="
-        background:#dcefd8;
-        border-radius:3px;
-        padding:1px 2px;
-        font-weight:500;
-      ">
-        ${escapeHtml(chunkText.slice(h.start, h.end))}
-      </mark>
-    `;
+    result += `<mark style="background:#ede9fe;border-radius:3px;padding:1px 3px;font-weight:500;color:#4c1d95;">${escapeHtml(chunkText.slice(h.start, h.end))}</mark>`;
     current = h.end;
   }
 
   result += escapeHtml(chunkText.slice(current));
   return result;
+}
+
+function cleanChunkText(text: string): string {
+  return text
+    // Remove markdown headings (# ## ### etc.)
+    .replace(/^#{1,6}\s*/gm, "")
+    // Remove image/link markdown artifacts like ![](...) and [](...)
+    .replace(/!?\[.*?\]\(.*?\)/g, "")
+    // Collapse runs of whitespace/newlines into single spaces
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function escapeHtml(text: string): string {
