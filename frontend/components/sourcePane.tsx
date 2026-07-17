@@ -85,7 +85,7 @@ export default function SourcePane({
     return titles[s.document_id] ?? "Loading title…";
   }
 
-  const DEFAULT_PANEL_WIDTH = 950;
+  const DEFAULT_PANEL_WIDTH = 900;
 
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
 
@@ -143,7 +143,7 @@ export default function SourcePane({
 
     setPanelWidth(
       Math.max(
-        650,
+        630,
         Math.min(1400, width)
       )
     );
