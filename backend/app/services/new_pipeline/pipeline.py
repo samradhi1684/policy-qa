@@ -797,12 +797,12 @@ Answer:
         query: str,
         top_chunks: List[Dict[str, Any]],
     ):
-        numbered_context, _ = self._build_numbered_evidence(top_chunks)
+        numbered_context, evidence_map = self._build_numbered_evidence(top_chunks)
 
         if not numbered_context:
-            return ""
+            return "", {}
 
-        return f"""
+        prompt = f"""
     Answer the question using ONLY the evidence below.
 
     Question:
@@ -821,6 +821,8 @@ Answer:
 
     Answer:
     """.strip()
+
+        return prompt, evidence_map
 
         
 
@@ -1078,14 +1080,43 @@ class Pipeline:
         
         else:
 
-            prompt = self.generator.build_stream_prompt(
+            prompt, evidence_map = self.generator.build_stream_prompt(
                 query,
                 top_chunks,
             )
 
-            answer = None
+            # Run a fast citation-only LLM call so prepare_for_stream() can
+            # compute highlight_spans before streaming begins. The main answer
+            # is streamed separately; this call only needs the sentence IDs.
             citations = []
-            evidence_map = {}
+            if evidence_map:
+                evidence_lines = "\n".join(
+                    f"  [{sid}] {ev['sentence']}"
+                    for sid, ev in evidence_map.items()
+                )
+                citation_prompt = f"""Below is numbered evidence. List ONLY the sentence IDs (e.g. S0, S3) that directly answer the question. Output ONLY a JSON array of strings, nothing else.
+
+Question: {query}
+
+Evidence:
+{evidence_lines}
+
+Relevant sentence IDs:""".strip()
+
+                try:
+                    with Timer("run() — citation extraction LLM call"):
+                        raw_cites = llm(citation_prompt, max_tokens=80, temperature=0.0)
+                    raw_cites = raw_cites.strip()
+                    if raw_cites.startswith("```"):
+                        raw_cites = raw_cites.replace("```json", "").replace("```", "").strip()
+                    parsed_cites = json.loads(raw_cites)
+                    if isinstance(parsed_cites, list):
+                        citations = [c for c in parsed_cites if isinstance(c, str)]
+                except Exception:
+                    logger.warning("Citation extraction failed for streaming path — highlights will be empty")
+                    citations = []
+
+            answer = None
 
         total = time.perf_counter() - pipeline_start
         print(f"[TIMING] PIPELINE RUN TOTAL: {total:.3f}s")
