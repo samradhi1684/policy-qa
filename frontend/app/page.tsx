@@ -55,8 +55,8 @@ export default function LandingPage() {
     const trimmed = question.trim();
     if (!trimmed || sending || !ready) return;
 
-    // India is not live — block send and show a notice
-    if (country === "mnre") return;
+  
+    
 
     if (!token) {
       try {
@@ -82,7 +82,6 @@ export default function LandingPage() {
     router.push("/chat");
   }
 
-  const indiaSelected = country === "mnre";
 
   return (
     <div className="page-shell">
@@ -163,10 +162,13 @@ export default function LandingPage() {
               {COUNTRIES.map((c, i) => {
                 const active = country === c.id;
                 return (
+                
                   <button
                     key={c.id}
                     className={`capsule-segment ${active ? "capsule-segment-active" : ""} ${!c.live ? "capsule-segment-disabled" : ""}`}
-                    onClick={() => setCountry(c.id)}
+                    onClick={() => c.live && setCountry(c.id)}
+                    disabled={!c.live}
+                    aria-disabled={!c.live}
                     aria-pressed={active}
                   >
                     <span className="country-flag">{c.flag}</span>
@@ -181,13 +183,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* ── Input zone ─────────────────────────────────────────────── */}
-          <div className={`input-zone ${indiaSelected ? "input-zone-disabled" : ""}`}>
-            {indiaSelected && (
-              <div className="india-notice">
-                🇮🇳 India dataset is under construction — coming soon!
-              </div>
-            )}
+            <div className="input-zone">
             <InputBar
               value={question}
               onChange={setQuestion}
@@ -362,7 +358,7 @@ export default function LandingPage() {
           font-family: inherit;
           position: relative;
         }
-        .capsule-segment:hover:not(.capsule-segment-active) {
+        .capsule-segment:not(:disabled):hover:not(.capsule-segment-active) {
           background: var(--primary-soft);
           color: var(--primary);
         }
@@ -380,8 +376,8 @@ export default function LandingPage() {
         .country-flag { font-size: 18px; line-height: 1; }
         .country-abbr { font-size: 15px; font-weight: 600; }
         .capsule-segment-disabled {
-          opacity: 0.72;
-          cursor: default;
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         .coming-soon-inline {
           font-size: 9px; font-weight: 700;
@@ -412,20 +408,8 @@ export default function LandingPage() {
             0 1px 4px rgba(123,94,168,0.06);
           transition: opacity 0.2s;
         }
-        .input-zone-disabled {
-          opacity: 0.55;
-          pointer-events: none;
-        }
-        .india-notice {
-          font-size: 13px; font-weight: 600;
-          color: var(--accent-purple);
-          background: var(--accent-purple-soft);
-          border: 1px solid var(--accent-purple-border);
-          border-radius: 12px;
-          padding: 10px 14px;
-          margin-bottom: 12px;
-          text-align: left;
-        }
+
+
         .input-hint {
           margin: 9px 0 0;
           font-size: 11.5px;
