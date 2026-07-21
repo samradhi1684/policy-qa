@@ -130,7 +130,7 @@ export default function InputBar({
       <div
         style={{
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           gap: 8,
           background: "var(--input-bg)",
           border: "1px solid var(--input-border)",
@@ -173,7 +173,6 @@ export default function InputBar({
             color: "#7d8a78",
             opacity: uploadDisabled ? 0.35 : 0.75,
             flexShrink: 0,
-            marginBottom: "2px",
           }}
         >
           <Paperclip size={18} />
@@ -305,7 +304,6 @@ export default function InputBar({
             opacity: recording ? 1 : 0.75,
             flexShrink: 0,
             transition: "background 0.15s",
-            marginBottom: "2px",
           }}
         >
           {recording ? <Square size={15} fill="currentColor" /> : <Mic size={17} />}
@@ -328,7 +326,6 @@ export default function InputBar({
             color: canSend ? "var(--send-btn-text)" : "var(--send-btn-disabled-text)",
             flexShrink: 0,
             transition: "all 0.15s",
-            marginBottom: "2px",
           }}
         >
           <ArrowUp size={18} strokeWidth={2.4} />
